@@ -78,6 +78,16 @@ Panel {
     return "herdr agents — " + (parts.length ? parts.join(" · ") : "none")
   }
 
+  // How many agents share the slot's current (worst) state. The +N suffix
+  // appears from two up — one agent is "an agent", you don't count to one.
+  readonly property int barStateCount: {
+    var rev = root.dataRev
+    var c = root.counts
+    return root.barState === "idle" ? 0 : (c[root.barState] || 0)
+  }
+
+  readonly property bool barBusy: root.barStateCount >= 2
+
   readonly property var counts: {
     var rev = root.dataRev
     var c = { working: 0, blocked: 0, done: 0, idle: 0, unknown: 0 }
@@ -343,28 +353,50 @@ Panel {
     // construction, carries state color reliably, never depends on which
     // unicode plane the user's Nerd Font assigns to a PUA slot. working =
     // dot, blocked = red badge with !, done = blue badge with check,
-    // idle/unknown = faint hollow ring.
+    // idle/unknown = faint hollow ring. From two agents sharing the state
+    // a small +N joins the disc and the slot widens to hold it (the clock
+    // changes width with the time; same precedent).
     iconComponent: Component {
-      Item {
-        anchors.fill: parent
+      Row {
+        anchors.centerIn: parent
+        spacing: Style.space(3)
 
-        StateDisc {
-          status: root.barState
-          anchors.centerIn: parent
+        Item {
+          anchors.verticalCenter: parent.verticalCenter
+          implicitWidth: 11
+          implicitHeight: 11
+
+          StateDisc {
+            status: root.barState
+            anchors.centerIn: parent
+          }
+
+          Text {
+            visible: root.barState === "blocked" || root.barState === "done"
+            anchors.centerIn: parent
+            textFormat: Text.PlainText
+            text: root.barState === "blocked" ? "!" : "\u2713"
+            color: "#1c1c22"
+            font.family: root.fontFamily
+            font.pixelSize: 9
+            font.bold: true
+          }
         }
 
         Text {
-          visible: root.barState === "blocked" || root.barState === "done"
-          anchors.centerIn: parent
+          visible: root.barBusy
           textFormat: Text.PlainText
-          text: root.barState === "blocked" ? "!" : "\u2713"
-          color: "#1c1c22"
+          text: "+" + root.barStateCount
+          color: root.stateColor(root.barState)
           font.family: root.fontFamily
-          font.pixelSize: 9
+          font.pixelSize: Style.font.caption
           font.bold: true
+          anchors.verticalCenter: parent.verticalCenter
         }
       }
     }
+
+    slotSize: root.barBusy ? Style.bar.iconSlot + Style.space(22) : Style.bar.iconSlot
 
     tooltipText: root.barTooltip
 
