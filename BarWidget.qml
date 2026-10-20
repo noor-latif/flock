@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import qs.Commons
@@ -52,16 +53,6 @@ Panel {
     return cIdle
   }
 
-  // Nerd Font glyphs — same family every first-party bar icon uses
-  // (JetBrainsMono Nerd); FontAwesome classics included for years.
-  function stateGlyph(status) {
-    if (status === "done") return "\uF058"   // check-circle
-    if (status === "blocked") return "\uF06A" // exclamation-circle
-    if (status === "working") return "\uF111" // circle, state-colored
-    if (status === "idle") return "\u25CB"   // ○ hollow
-    return "?"
-  }
-
   // The bar slot shows ONE icon in the standard icon-slot footprint, like
   // every neighbouring widget. Icon carries the worst active state by color
   // and glyph; counts never go in the bar — the hover tooltip and the panel
@@ -74,11 +65,6 @@ Panel {
     if (c.done > 0) return "done"
     return "idle"
   }
-
-  readonly property string barGlyph:
-    root.barState === "blocked" ? "\uF06A" :
-    root.barState === "done" ? "\uF058" :
-    "\uF111"
 
   readonly property string barTooltip: {
     var rev = root.dataRev
@@ -231,6 +217,109 @@ Panel {
 
   // ------------------------------------------------------------- layout
 
+  // The state disc shared by the bar icon, the hero and every panel row —
+  // one shape language everywhere. Idle renders as a faint hollow ring.
+  component StateDisc: Rectangle {
+    property string status: "idle"
+    width: status === "idle" ? 9 : 11
+    height: width
+    radius: width / 2
+    color: status === "idle" ? "transparent" : root.stateColor(status)
+    border.width: status === "idle" ? 1.5 : 0
+    border.color: root.stateColor(status)
+    opacity: status === "idle" ? 0.55 : 1
+  }
+
+  // One agent row in the first-party panel anatomy: state disc column,
+  // two-line text (title over dim "cwd · pane"), trailing focus chevron,
+  // and the shared hover/selected pill. The focused agent's row is the
+  // selected one (bold title on the selected fill) — tailscale's current
+  // account does the same. Hover-only for now: keyboard cursor wiring is
+  // a later concern, so hasCursor stays false and MouseArea drives clicks.
+  component AgentRow: CursorSurface {
+    id: agentRowSurface
+    property var agent: null
+    current: agent ? agent.focused === true : false
+    foreground: root.foreground
+
+    implicitHeight: agentInner.implicitHeight + Style.spacing.rowPaddingX
+
+    RowLayout {
+      id: agentInner
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.verticalCenter: parent.verticalCenter
+      anchors.leftMargin: Style.space(6)
+      anchors.rightMargin: Style.space(6)
+      spacing: Style.space(8)
+
+      Item {
+        Layout.preferredWidth: Style.space(22)
+        Layout.alignment: Qt.AlignVCenter
+        implicitHeight: agentTitle.implicitHeight + agentSub.implicitHeight + Style.space(1)
+        StateDisc {
+          status: agentRowSurface.agent ? agentRowSurface.agent.agent_status : "idle"
+          anchors.centerIn: parent
+        }
+      }
+
+      ColumnLayout {
+        Layout.fillWidth: true
+        spacing: Style.space(1)
+
+        Text {
+          id: agentTitle
+          Layout.fillWidth: true
+          textFormat: Text.PlainText
+          text: {
+            var a = agentRowSurface.agent
+            if (!a) return ""
+            var t = a.terminal_title_stripped
+            if (!t) t = (a.foreground_cwd || a.cwd || a.pane_id).split("/").pop()
+            return t
+          }
+          color: root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.body
+          font.bold: agentRowSurface.current
+          elide: Text.ElideRight
+        }
+
+        Text {
+          id: agentSub
+          Layout.fillWidth: true
+          textFormat: Text.PlainText
+          text: {
+            var a = agentRowSurface.agent
+            if (!a) return ""
+            var cwd = (a.foreground_cwd || a.cwd || "").split("/").pop()
+            return (cwd ? cwd + " · " : "") + a.pane_id
+          }
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          elide: Text.ElideRight
+        }
+      }
+
+      Text {
+        textFormat: Text.PlainText
+        text: "\u203A"
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.body
+        Layout.alignment: Qt.AlignVCenter
+      }
+    }
+
+    MouseArea {
+      anchors.fill: parent
+      hoverEnabled: true
+      cursorShape: Qt.PointingHandCursor
+      onClicked: if (agentRowSurface.agent) root.activatePane(agentRowSurface.agent.pane_id)
+    }
+  }
+
   visible: root.agents.length > 0
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -250,20 +339,30 @@ Panel {
     anchors.fill: parent
     bar: root.bar
 
-    // A custom icon component so the glyph can carry state color; its text
-    // is bound to root.barState, this slot otherwise lines up exactly like
-    // the first-party bar icons (same optical canvas, same footprint).
+    // Custom painted icon (shared StateDisc), not a font glyph: centers by
+    // construction, carries state color reliably, never depends on which
+    // unicode plane the user's Nerd Font assigns to a PUA slot. working =
+    // dot, blocked = red badge with !, done = blue badge with check,
+    // idle/unknown = faint hollow ring.
     iconComponent: Component {
-      Text {
+      Item {
         anchors.fill: parent
-        textFormat: Text.PlainText
-        text: root.barGlyph
-        color: root.stateColor(root.barState)
-        font.family: root.fontFamily
-        font.pixelSize: Style.bar.iconFont
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
-        renderType: Text.NativeRendering
+
+        StateDisc {
+          status: root.barState
+          anchors.centerIn: parent
+        }
+
+        Text {
+          visible: root.barState === "blocked" || root.barState === "done"
+          anchors.centerIn: parent
+          textFormat: Text.PlainText
+          text: root.barState === "blocked" ? "!" : "\u2713"
+          color: "#1c1c22"
+          font.family: root.fontFamily
+          font.pixelSize: 9
+          font.bold: true
+        }
       }
     }
 
@@ -315,9 +414,18 @@ Panel {
                       " · " + c.working + " working · " + c.blocked + " blocked · " +
                       c.done + " done")
             }
+            iconComponent: Component {
+              Item {
+                implicitWidth: Style.font.display
+                implicitHeight: Style.font.display
+                StateDisc { status: root.barState; anchors.centerIn: parent; scale: 1.5 }
+              }
+            }
             foreground: root.foreground
             fontFamily: root.fontFamily
           }
+
+          PanelSeparator {}
 
           Text {
             visible: root.agents.length === 0
@@ -339,8 +447,10 @@ Panel {
               width: parent.width
               spacing: Style.space(2)
 
+              PanelSeparator { visible: wsSection.modelData.index > 0 }
+
               PanelSectionHeader {
-                text: wsSection.modelData.label + "  ·  " + wsSection.modelData.rows.length
+                text: wsSection.modelData.label.toUpperCase()
                 foreground: root.foreground
                 fontFamily: root.fontFamily
               }
@@ -348,93 +458,12 @@ Panel {
               Repeater {
                 model: wsSection.modelData.rows
 
-                delegate: Item {
-                  id: agentRow
-                  required property var modelData
+                delegate: AgentRow {
                   width: parent.width
-                  height: agentTitle.implicitHeight + Style.space(10)
-
-                  MouseArea {
-                    id: rowArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.activatePane(agentRow.modelData.pane_id)
-                  }
-
-                  Rectangle {
-                    width: 2
-                    height: parent.height
-                    color: rowArea.containsMouse
-                            ? Style.selectedFillFor(root.foreground, Color.accent)
-                            : "transparent"
-                  }
-
-                  Row {
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.left: parent.left
-                    anchors.leftMargin: Style.space(10)
-                    anchors.right: parent.right
-                    spacing: Style.space(8)
-
-                    Text {
-                      anchors.verticalCenter: parent.verticalCenter
-                      textFormat: Text.PlainText
-                      text: root.stateGlyph(agentRow.modelData.agent_status)
-                      color: root.stateColor(agentRow.modelData.agent_status)
-                      font.family: root.fontFamily
-                      font.pixelSize: Style.font.body
-                    }
-
-                    Text {
-                      id: agentTitle
-                      anchors.verticalCenter: parent.verticalCenter
-                      textFormat: Text.PlainText
-                      text: {
-                        var a = agentRow.modelData
-                        var t = a.terminal_title_stripped
-                        if (!t) t = (a.foreground_cwd || a.cwd || a.pane_id).split("/").pop()
-                        return t
-                      }
-                      color: root.foreground
-                      font.family: root.fontFamily
-                      font.pixelSize: Style.font.body
-                      elide: Text.ElideRight
-                      width: Math.max(80, parent.width - Style.space(90))
-                      opacity: rowArea.containsMouse ? 1 : 0.92
-                    }
-
-                    Text {
-                      anchors.verticalCenter: parent.verticalCenter
-                      textFormat: Text.PlainText
-                      text: agentRow.modelData.focused ? "◇" : ""
-                      color: root.dim
-                      font.family: root.fontFamily
-                      font.pixelSize: Style.font.body
-                    }
-
-                    Text {
-                      anchors.verticalCenter: parent.verticalCenter
-                      textFormat: Text.PlainText
-                      text: agentRow.modelData.pane_id
-                      color: root.dim
-                      font.family: root.fontFamily
-                      font.pixelSize: 10
-                    }
-                  }
+                  agent: modelData
                 }
               }
             }
-          }
-
-          Text {
-            visible: root.agents.length > 0
-            width: parent.width
-            textFormat: Text.PlainText
-            text: "click a row to focus its window"
-            color: root.dim
-            font.family: root.fontFamily
-            font.pixelSize: 10
           }
         }
       }
