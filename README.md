@@ -5,9 +5,8 @@ so you stop choosing between "agent visible in the tiling layout" and "agent in 
 window". Your iPhone (rootshell) pairing and the macOS/Linux herdr session keep working
 as before — `hd` is only another client of the same session.
 
-Pairs with the Omarchy bar widget in this repo: live dots for agents that changed state
-most recently, a count badge, and a click-to-focus list of every agent grouped by
-workspace.
+Pairs with the Omarchy bar widget in this repo: a single state-colored status icon
+and a click-to-focus list of every agent grouped by workspace.
 
 ## Quickstart
 
@@ -44,14 +43,16 @@ hd <pane-id> --force   # shared viewing: this window watches, never claims
 Enabled via `omarchy plugin add <this-repo-url> --enable --section right` (repo root is
 the plugin). It polls `herdr agent list` + `workspace list` every 2s and shows:
 
-- up to 3 dots for the most recently changed working/blocked/done agents
-- a compact count badge (`●2 !1 ✓3 ○4`)
+- one status icon in the standard omarchy icon slot, colored by the worst active state
+  (blocked alert · working activity · done check · dim when nothing is active)
+- a hover tooltip with the counts ("herdr agents — 3 working · 1 blocked · 9 idle")
 - click → panel with **all** agents grouped by workspace; a row click focuses the window
   viewing that pane, spawning one if none exists
 
-Settings (`manifest.json` schema): `refreshIntervalSec` (default 2), `maxDots`
-(default 3). No desktop notifications in v1; no focus stealing — the widget only
-focuses/open windows on explicit clicks.
+Settings (`manifest.json` schema): `refreshIntervalSec` (default 2). No digits or dots
+in the bar — icons never carry counts, the panel is the detail surface. No desktop
+notifications in v1; no focus stealing — the widget only focuses/open windows on
+explicit clicks.
 
 ## Troubleshooting
 

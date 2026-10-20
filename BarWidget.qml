@@ -7,12 +7,14 @@ import qs.Ui
 
 // hd — herdr agents on the bar.
 //
-// Replaces the herdr sidebar with a bar slot: at most three dots for the
-// agents that changed state most recently (colored by state), a compact
-// count badge, and a panel listing every agent grouped by workspace. A
-// click on a row focuses the window viewing that pane, spawning one (foot
-// + `hd <pane_id>`) when no window has it. Claims stay where the user put
-// them: the bar never changes geometry, it only moves focus.
+// Replaces the herdr sidebar with a bar slot in the standard omarchy icon
+// footprint: ONE state-colored glyph (blocked alert · working active ·
+// done check; dimmed when nothing is active), never any counts — those
+// live in the hover tooltip and in the panel, which lists every agent
+// grouped by workspace. A click on a row focuses the window viewing that
+// pane, spawning one (foot + `hd <pane_id>`) when no window has it.
+// Claims stay where the user put them: the bar never changes geometry,
+// it only moves focus.
 Panel {
   id: root
   moduleName: "hd-herdr"
@@ -41,7 +43,6 @@ Panel {
     return (value === undefined || value === null || value === "") ? fallback : value
   }
 
-  readonly property int maxDots: Math.max(0, Math.min(5, Math.floor(Number(setting("maxDots", 3)))))
   readonly property int refreshIntervalSec: Math.max(1, Math.floor(Number(setting("refreshIntervalSec", 2))))
 
   function stateColor(status) {
@@ -51,28 +52,45 @@ Panel {
     return cIdle
   }
 
+  // Nerd Font glyphs — same family every first-party bar icon uses
+  // (JetBrainsMono Nerd); FontAwesome classics included for years.
   function stateGlyph(status) {
-    if (status === "done") return "✓"
-    if (status === "blocked") return "!"
-    if (status === "working") return "●"
-    if (status === "idle") return "○"
+    if (status === "done") return "\uF058"   // check-circle
+    if (status === "blocked") return "\uF06A" // exclamation-circle
+    if (status === "working") return "\uF111" // circle, state-colored
+    if (status === "idle") return "\u25CB"   // ○ hollow
     return "?"
   }
 
-  // Active agents, most recently changed first — the dots truncate this.
-  readonly property var activeAgents: {
+  // The bar slot shows ONE icon in the standard icon-slot footprint, like
+  // every neighbouring widget. Icon carries the worst active state by color
+  // and glyph; counts never go in the bar — the hover tooltip and the panel
+  // carry the breakdown.
+  readonly property string barState: {
     var rev = root.dataRev
-    var out = []
-    for (var i = 0; i < root.agents.length; i++) {
-      var s = root.agents[i].agent_status
-      if (s === "working" || s === "blocked" || s === "done")
-        out.push(root.agents[i])
-    }
-    out.sort(function(a, b) { return (b.state_change_seq || 0) - (a.state_change_seq || 0) })
-    return out
+    var c = root.counts
+    if (c.blocked > 0) return "blocked"
+    if (c.working > 0) return "working"
+    if (c.done > 0) return "done"
+    return "idle"
   }
 
-  readonly property var dots: root.activeAgents.slice(0, root.maxDots)
+  readonly property string barGlyph:
+    root.barState === "blocked" ? "\uF06A" :
+    root.barState === "done" ? "\uF058" :
+    "\uF111"
+
+  readonly property string barTooltip: {
+    var rev = root.dataRev
+    var c = root.counts
+    var parts = []
+    if (c.working > 0) parts.push(c.working + " working")
+    if (c.blocked > 0) parts.push(c.blocked + " blocked")
+    if (c.done > 0) parts.push(c.done + " done")
+    if (c.idle > 0) parts.push(c.idle + " idle")
+    if (c.unknown > 0) parts.push(c.unknown + " unknown")
+    return "herdr agents — " + (parts.length ? parts.join(" · ") : "none")
+  }
 
   readonly property var counts: {
     var rev = root.dataRev
@@ -82,17 +100,6 @@ Panel {
       if (c[s] !== undefined) c[s]++
     }
     return c
-  }
-
-  readonly property string badgeText: {
-    var c = root.counts
-    var parts = []
-    if (c.working > 0) parts.push("●" + c.working)
-    if (c.blocked > 0) parts.push("!" + c.blocked)
-    if (c.done > 0) parts.push("✓" + c.done)
-    var rest = c.idle + c.unknown
-    if (rest > 0) parts.push("○" + rest)
-    return parts.join(" ")
   }
 
   // ------------------------------------------------------------- polling
@@ -225,11 +232,7 @@ Panel {
   // ------------------------------------------------------------- layout
 
   visible: root.agents.length > 0
-  // The slot must measure the real content: WidgetButton derives its width
-  // from the text label alone, and this button's label is empty (the dots +
-  // badge are nested content), so the default collapses to padding-width and
-  // the row paints over the neighbouring widgets — unclickable and tangled.
-  implicitWidth: barRow.implicitWidth + Style.space(18)
+  implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
   IpcHandler {
@@ -242,43 +245,33 @@ Panel {
     function refresh(): string { root.poll(); return "ok" }
   }
 
-  WidgetButton {
+  BarIconButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: ""
-    hasVisualContent: true
+
+    // A custom icon component so the glyph can carry state color; its text
+    // is bound to root.barState, this slot otherwise lines up exactly like
+    // the first-party bar icons (same optical canvas, same footprint).
+    iconComponent: Component {
+      Text {
+        anchors.fill: parent
+        textFormat: Text.PlainText
+        text: root.barGlyph
+        color: root.stateColor(root.barState)
+        font.family: root.fontFamily
+        font.pixelSize: Style.bar.iconFont
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignVCenter
+        renderType: Text.NativeRendering
+      }
+    }
+
+    tooltipText: root.barTooltip
 
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.RightButton) root.poll()
       else root.toggle()
-    }
-
-    Row {
-      id: barRow
-      anchors.centerIn: parent
-      spacing: Style.space(5)
-
-      Repeater {
-        model: root.dots
-
-        delegate: Rectangle {
-          required property var modelData
-          width: 7
-          height: 7
-          radius: 3.5
-          color: root.stateColor(modelData.agent_status)
-        }
-      }
-
-      Text {
-        textFormat: Text.PlainText
-        text: root.badgeText
-        color: root.foreground
-        visible: root.badgeText !== ""
-        font.family: root.fontFamily
-        font.pixelSize: button.fontSize * 0.82
-      }
     }
   }
 
