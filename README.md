@@ -1,94 +1,107 @@
-# wh — one window, one agent
+# winherd — one window, one agent
 
-`wh` rebinds a plain terminal window to a single [herdr](https://github.com/herdr) pane,
-so you stop choosing between "agent visible in the tiling layout" and "agent in a real
-window". Your iPhone (rootshell) pairing and the macOS/Linux herdr session keep working
-as before — `wh` is only another client of the same session.
+`winherd` rebinds plain terminal windows to single panes of your [herdr](docs)
+session, so an agent gets a real, movable window with your tiling kept for
+*you*. Its Omarchy bar widget shows every agent in the session as one status
+badge and a click-to-focus popup. Your iPhone (rootshell) pairing is
+unaffected — `wh` windows are just more clients of the same session.
 
-Pairs with the Omarchy bar widget in this repo: a single state-colored status icon
-and a click-to-focus list of every agent grouped by workspace.
+## Dependencies — read this first
 
-## Quickstart
+| Need | Why |
+|---|---|
+| **Omarchy** | the bar widget is an omarchy-shell plugin |
+| **The rootshell herdr fork** | the whole thing speaks the fork's JSON control stream (`herdr control`); upstream herdr 0.9.x has none — the installer refuses up front |
+| `foot` | spawned agent windows |
+| `python3` (3.9+) | launcher + client |
+| `fzf` (optional) | only for `wh list` |
 
-Prereqs: Omarchy (or any Hyprland + foot setup), the herdr fork with the JSON control
-stream on PATH (`bash -lc 'command -v herdr'`), `python3`, `fzf`.
+The fork must resolve on PATH even in compositor-exec'd windows (they skip
+bashrc); set `HERDR_BIN_PATH` or make sure its `bin/` dir is on PATH
+globally.
+
+## Install
 
 ```sh
-git clone https://github.com/<you>/winherd.git && cd winherd
-./install.sh          # client + launcher; offers bar-widget install
+git clone https://github.com/noor-latif/winherd.git && cd winherd
+./install.sh          # installs wh (~/.local/bin) + offers the bar widget
 ```
 
-Then, in a plain terminal window (Win+Enter):
+The installer verifies the running server *and* the control stream before
+touching anything, then offers the plugin enable and the
+`sidebar_start_collapsed` config (pane-per-window makes the in-herdr sidebar
+dead weight).
+
+## Usage — in a plain foot window (Win+Enter)
 
 ```sh
-wh            # attach this window to a pane of the focused workspace (find or create)
-wh list       # pick any pane with fzf (open a new window for it)
-wh take       # take over the pane whose window you're replacing (via its title)
-wh <pane-id> --force   # shared viewing: this window watches, never claims
+wh                     # attach to a pane of this cwd's workspace, find or create
+wh list                # fzf over every pane of the session
+wh take                # fit geometry (claim) for the pane this window holds
+wh <pane_id> --force   # watch a claimed pane as a viewer, never claims
+wh status              # agent JSON dump for scripting
 ```
 
-## How it behaves
+## Usage — the bar badge and popup
 
-- **1 window = 1 pane.** The window rebinds itself to the pane: herdr's server sends
-  snapshots, keystrokes flow in, geometry follows yours. Hyprland keybinds are untouched;
-  no session, tab or pane is ever created except when you ask for a *new* pane.
-- **Claims move only when you move them** (rootshell issue #278 discipline). Attaching a
-  second window to a claimed pane gives you a *viewer*, not the claim: `--force` or
-  picking the pane again in `wh list` hints exactly that.
-- **Titles stay truthful**: the window title ends in `pane <id>` so the bar widget (and
-  any script) can find the window that shows a given pane.
+The badge is one disc in the standard icon slot:
 
-## Bar widget
+- **number inside = agents waiting on you** (blocked + finished-not-seen;
+  empty disc when nobody waits, no "0")
+- **color = the worst state on the floor**: red blocked > green working >
+  blue done; all idle = a thin bright ring
+- count ≥ 10 grows the disc sideways into a pill; the full number always
+  fits
+- hover = counts ("winherd — 1 blocked · 1 done · 9 idle")
 
-Enabled via `omarchy plugin add <this-repo-url> --enable --section right` (repo root is
-the plugin). It polls `herdr agent list` + `workspace list` every 2s and shows:
+Click opens the panel: agents grouped by workspace, each row with its own
+state dot, title, and `cwd · pane id`. **Clicking a row focuses that
+agent's window (spawning one on the pane if none exists), marks it seen —
+the badge count drops — and closes the panel.** Dismissals survive shell
+restarts (`~/.local/state/winherd/acks.json`); an agent that starts and
+finishes again re-alerts on its own.
 
-- one status icon in the standard omarchy icon slot, colored by the worst active state
-  (blocked alert · working activity · done check · dim when nothing is active)
-- a hover tooltip with the counts ("herdr agents — 3 working · 1 blocked · 9 idle")
-- click → panel with **all** agents grouped by workspace; a row click focuses the window
-  viewing that pane, spawning one if none exists
+Right-click the badge re-polls. The widget never steals focus: only your
+clicks move windows.
 
-Settings (`manifest.json` schema): `refreshIntervalSec` (default 2). No digits or dots
-in the bar — icons never carry counts, the panel is the detail surface. No desktop
-notifications in v1; no focus stealing — the widget only focuses/open windows on
-explicit clicks.
+## Claim discipline (rootshell issue #278)
+
+Claims move only on activation edges — the first attach on an unowned pane,
+explicit `wh take`, or hydr focus of this window. A second `wh` window on a
+claimed pane is a viewer, and the takeover never happens automatically:
+`wh take` from the other side, or the phone's claim button, moves it
+deliberately.
 
 ## Troubleshooting
 
-- **`wh: this herdr binary does not expose the JSON control stream`** — you resolved to
-  upstream `herdr` (0.9.x). Use the rootshell fork and put its `bin/` first on PATH.
-- **`herdr server is not running`** — start the server once with `herdr`.
-- **A window says the pane is already attached** — another window owns it. Take the hint
-  it prints: `wh <pane> --force` to watch, or don't.
-- **The herdr sidebar is still visible in new tabs** — add `sidebar_start_collapsed =
-  true` under `[ui]` in `~/.config/herdr/config.toml`, then `herdr server reload-config`
-  (never `herdr server stop` while agents are running).
-- **iPhone (rootshell)** — nothing changes for the phone; it attaches to the same server.
-  Pair as usual; `wh` windows and the phone can view shared panes under the same claim
-  rules.
-
-**Pairing order for phone + wh:** the phone's rootshell session was paired against this
-herdr server already — `wh` windows just join it. In practice: the phone keeps whatever
-pane it has paired; a newly opened `wh` window attaches to the pane you pick (or the
-focused workspace's pane) as a *viewer* if the phone (or another window) holds the
-claim; `wh take` (inside a window whose client is live) is what moves the claim to this
-window. The phone's own claim button does the same from that side. Nothing on the phone
-needs reinstalling; add the laptop's `wh` claim moves to your normal claim discipline.
+- **"does not expose the JSON control stream"** — that's upstream herdr
+  resolving first; put the fork's `bin/` first on PATH.
+- **"herdr server is not running"** — start it once with `herdr`.
+- **"pane <id> closed — run wh in its workspace again"** — the pane died
+  between launch and attach (or was closed while the window attached);
+  the window parked instead of chasing a dead id. Close it and `wh` again.
+- **"another client owns this pane"** — someone else holds it (phone, or
+  another window). Watch with `--force` or take the claim if it's yours.
+- **Window title needs to end in `pane <id>`** — the bar focuses windows by
+  that suffix; if a prompt customizer renames your window, re-append it.
+- **Restart the shell after touching the widget**: `omarchy-restart-shell`
+  (plugin QML does not hot-reload).
 
 ## Layout
 
 ```
 manifest.json     omarchy bar-widget manifest (id: winherd)
-BarWidget.qml     the widget (Quickshell/omarchy-shell Panel)
+BarWidget.qml     badge + popup (Quickshell/omarchy-shell Panel)
 wh/wh             launcher: find-or-create, rebind, fzf picker, attached-guard
-wh/wh_client.py   the client itself (control stream ↔ pty)
+wh/wh_client.py   the pass-through client (control stream ↔ pty)
 install.sh        user-level installer (no sudo)
+ROADMAP.md        tracked plan + decisions
+AGENTS.md         notes for agents working on this repo
 docs/             protocol & design notes
 ```
 
 ## Testing
 
-`e2e_multi.py` (in the dev scratch, not this repo) exercises the full path with two
-fake windows: snapshot replay, shared viewing, claim handover, resize while claimed,
-and pane persistence across client exit.
+`wh status` + `omarchy-shell winherd refresh` ("ok") are the smoke tests.
+The ghost-path/client behaviors are stub-tested in-session (see git log);
+full multi-window e2e replayed from the dev scratch, not committed here.
