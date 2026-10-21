@@ -103,7 +103,13 @@ Panel {
       if ((a.agent_status || "") === "done" && root.acked[a.pane_id])
         keep[a.pane_id] = true
     }
-    root.acked = keep
+    if (Object.keys(keep).length !== Object.keys(root.acked).length) {
+      root.acked = keep
+      console.log("winherd: acks pruned ->", JSON.stringify(keep))
+      ackSaveTimer.restart()
+    } else {
+      root.acked = keep
+    }
   }
 
   function ackPane(paneId) {
@@ -114,6 +120,63 @@ Panel {
     next[paneId] = true
     root.acked = next
     root.dataRev++
+    ackSaveTimer.restart()
+  }
+
+  // -------------------------------------------------- dismissal persistence
+  // Acks survive shell restarts in a small state file, so a relogin does
+  // not re-ring every still-done agent. The prune rule stays authoritative:
+  // an ack lives only while its pane is still reported done. Saves debounce
+  // through a timer so a click burst is one disk write.
+  readonly property string acksPath: {
+    var stateHome = Quickshell.env("XDG_STATE_HOME")
+    if (!stateHome)
+      stateHome = Quickshell.env("HOME") + "/.local/state"
+    return stateHome + "/winherd/acks.json"
+  }
+
+  Process {
+    id: ackLoad
+    command: ["bash", "-lc", "cat \"$1\" 2>/dev/null || true", "sh", root.acksPath]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        try {
+          var doc = JSON.parse(String(text))
+          if (doc && doc.acked && typeof doc.acked === "object") {
+            var clean = {}
+            for (var k in doc.acked)
+              if (doc.acked[k] === true)
+                clean[k] = true
+            console.log("winherd: acks loaded:", JSON.stringify(clean))
+            root.acked = clean
+            root.dataRev++
+          } else {
+            console.log("winherd: acks file empty/unshaped")
+          }
+        } catch (e) { /* no file yet or junk: acks stay empty */ }
+      }
+    }
+  }
+
+  Process {
+    id: ackSaveProc
+  }
+
+  function saveAcks() {
+    var dir = root.acksPath.substring(0, root.acksPath.lastIndexOf("/"))
+    var payload = JSON.stringify(root.acked)
+    console.log("winherd: saving acks to", root.acksPath, payload)
+    ackSaveProc.command = ["bash", "-lc",
+                           "mkdir -p \"$1\" && printf '%s' \"$2\" > \"$1/acks.json\"",
+                           "sh", dir, payload]
+    ackSaveProc.running = true
+  }
+
+  Timer {
+    id: ackSaveTimer
+    interval: 400
+    onTriggered: root.saveAcks()
   }
 
   readonly property var counts: {
@@ -143,6 +206,7 @@ Panel {
   }
 
   Component.onCompleted: {
+    ackLoad.running = true
     whProbe.running = true
     root.poll()
   }
@@ -253,6 +317,9 @@ Panel {
     // Focus == clear: being taken to the agent IS the acknowledgment, for
     // both the focus branch and the fresh-window spawn branch.
     root.ackPane(paneId)
+    // Auto-dismiss: one click ends in one motion — the activated window
+    // takes over from here, so the popup goes away.
+    root.close()
     focusProc.running = true
   }
 
