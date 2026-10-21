@@ -51,9 +51,9 @@ command -v foot  >/dev/null 2>&1 || say "foot not found — bar widget spawn-ope
 # herdr must resolve to the fork that ships the JSON control stream.
 HERDR_RESOLVED=$(bash -lc 'command -v herdr' 2>/dev/null || true)
 if [[ -z $HERDR_RESOLVED ]]; then
-  fail "herdr not found on PATH. wh needs the rootshell fork (e.g.
-  clone https://github.com/<fork>/herdr && install its release to ~/.local/opt/herdr-rootshell
-  and add that bin dir to PATH in ~/.bashrc)"
+  fail "herdr not found on PATH. wh needs the rootshell herdr fork
+  (upstream herdr 0.9.x has no JSON control stream). Install the fork so
+  its bin/ dir is first on your PATH — see README, 'Dependencies'."
 fi
 say "herdr: $HERDR_RESOLVED"
 

@@ -76,7 +76,8 @@ sure. Skip reload lines only when a NEW startup block follows them.
   question wording.
 - Pending grills live in ROADMAP.md as OPEN decisions — resolve them before
   implementing the item they gate.
-- Git: plain commits work (global identity is set). Commit per completed plan item; ROADMAP status tick and
-  commit in the same commit when possible.
+- Git: plain commits work (global identity is set). Commit per completed
+  plan item; ROADMAP status tick and commit in the same commit when
+  possible.
 - GitHub ssh/https push available: gh CLI authenticated as noor-latif,
   https protocol. Public repo name for phase 2: github.com/noor-latif/winherd.
