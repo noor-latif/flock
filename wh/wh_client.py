@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""hd_client.py — per-pane pass-through terminal client for the herdr fork.
+"""wh_client.py — per-pane pass-through terminal client for the herdr fork.
 
 Child process of a plain `foot` window; stdout/stdin is the window pty.
 Speaks the fork's JSON control stream via the `herdr control` bridge and
@@ -13,7 +13,7 @@ attaches ONE pane:
 Ground truth lives in docs/architecture-notes.md. Claim discipline follows
 rootshell's own client (they fixed the tmux -CC stick-size bug class in
 kitknox/rootshell#278): claims only on activation edges (attach on an unowned
-tab, hydr focus of our window, explicit `hd take`), everything else
+tab, hydr focus of our window, explicit `wh take`), everything else
 claim:false, claims consumed on send, takeover never automatic, and every
 exit path detaches and closes the bridge.
 """
@@ -37,7 +37,7 @@ import time
 import queue as q_mod
 
 VERSION = "0.1.0"
-CLIENT_ID = f"hd/{VERSION}"
+CLIENT_ID = f"wh/{VERSION}"
 HISTORY_LIMIT = 1_048_576
 REQUEST_TIMEOUT = 15.0
 PING_INTERVAL = 30.0
@@ -444,7 +444,7 @@ class Client:
 
     def _fifo_path(self):
         rtd = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
-        d = os.path.join(rtd, "hd")
+        d = os.path.join(rtd, "wh")
         try:
             os.makedirs(d, exist_ok=True)
         except OSError:
@@ -473,7 +473,7 @@ class Client:
 
     def set_title(self):
         label = self.ws_label or "default"
-        bits = [f"hd:{label}"]
+        bits = [f"wh:{label}"]
         if self.tab_label:
             bits.append(self.tab_label)
         extra = self.title_extra()
@@ -723,7 +723,7 @@ class Client:
         reason = obj.get("reason") or "closed"
         if reason == "takeover":
             self.park("pane taken over by another client (likely rootshell on "
-                      "your phone). This window is parked; 'hd take' in a "
+                      "your phone). This window is parked; 'wh take' in a "
                       "fresh window would reclaim it.")
         else:
             self.schedule_reconnect()
@@ -781,8 +781,8 @@ class Client:
             msg = str(e)
             if "terminal_attached" in msg or "already" in msg:
                 self.park("another client owns this pane right now "
-                          "(rootshell on your phone, or another hd window). "
-                          "'hd take' in a fresh window would claim it.")
+                          "(rootshell on your phone, or another wh window). "
+                          "'wh take' in a fresh window would claim it.")
             else:
                 self.log(f"attach: {msg}")
                 self.schedule_reconnect()
@@ -869,7 +869,7 @@ class Client:
             sock.connect(path)
         except OSError:
             return
-        prefix = f"hd:{self.ws_label}"
+        prefix = f"wh:{self.ws_label}"
         buf = b""
         while not self.stop.is_set():
             try:
@@ -971,7 +971,7 @@ class Client:
     def park(self, msg):
         self.log(f"parked: {msg}")
         self.raw(b"\x1b[?25h")
-        self.raw(f"\r\n hd parked: {msg}\r\n".encode())
+        self.raw(f"\r\n wh parked: {msg}\r\n".encode())
         self.idle_death = None
         self.stop.set()
         if self.raw_mode_state:
@@ -981,7 +981,7 @@ class Client:
                 pass
 
     def log(self, msg):
-        sys.stderr.write(f"[hd {time.strftime('%H:%M:%S')}] {msg}\n")
+        sys.stderr.write(f"[wh {time.strftime('%H:%M:%S')}] {msg}\n")
         sys.stderr.flush()
 
     def cleanup(self):
@@ -1029,7 +1029,7 @@ def main():
     ap.add_argument("--session", default=None)
     ns = ap.parse_args()
     if not ns.pane and not ns.terminal:
-        print("hd_client: need --pane or --terminal", file=sys.stderr)
+        print("wh_client: need --pane or --terminal", file=sys.stderr)
         sys.exit(2)
     c = Client(ns.pane, ns.terminal, ns.workspace_label, ns.tab_label, ns.session)
     signal.signal(signal.SIGWINCH, c.on_sigwinch)

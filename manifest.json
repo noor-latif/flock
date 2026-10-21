@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "id": "hd-herdr",
-  "name": "hd Agents",
+  "id": "winherd",
+  "name": "wh Agents",
   "version": "0.1.0",
   "author": "noor",
   "license": "MIT",
@@ -14,11 +14,11 @@
     "barWidget": "BarWidget.qml"
   },
   "barWidget": {
-    "displayName": "hd Agents",
+    "displayName": "wh Agents",
     "description": "Watch herdr agents: state icon, count tooltip, click-to-focus agent list.",
     "category": "AI",
     "aliases": [
-      "hd",
+      "wh",
       "herdr",
       "agents"
     ],

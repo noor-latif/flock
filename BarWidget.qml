@@ -6,20 +6,20 @@ import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
-// hd — herdr agents on the bar.
+// wh — herdr agents on the bar.
 //
 // Replaces the herdr sidebar with a bar slot in the standard omarchy icon
 // footprint: ONE state-colored glyph (blocked alert · working active ·
 // done check; dimmed when nothing is active), never any counts — those
 // live in the hover tooltip and in the panel, which lists every agent
 // grouped by workspace. A click on a row focuses the window viewing that
-// pane, spawning one (foot + `hd <pane_id>`) when no window has it.
+// pane, spawning one (foot + `wh <pane_id>`) when no window has it.
 // Claims stay where the user put them: the bar never changes geometry,
 // it only moves focus.
 Panel {
   id: root
-  moduleName: "hd-herdr"
-  ipcTarget: "hd-herdr"
+  moduleName: "winherd"
+  ipcTarget: "winherd"
   manageIpc: false
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
@@ -37,7 +37,7 @@ Panel {
   property var agents: []
   property var wsLabels: ({})
   property int dataRev: 0
-  property string hdBin: ""
+  property string whBin: ""
 
   function setting(name, fallback) {
     var value = settings ? settings[name] : undefined
@@ -75,24 +75,54 @@ Panel {
     if (c.done > 0) parts.push(c.done + " done")
     if (c.idle > 0) parts.push(c.idle + " idle")
     if (c.unknown > 0) parts.push(c.unknown + " unknown")
-    return "herdr agents — " + (parts.length ? parts.join(" · ") : "none")
+    return "winherd — " + (parts.length ? parts.join(" · ") : "none")
   }
 
-  // How many agents share the slot's current (worst) state. The +N suffix
-  // appears from two up — one agent is "an agent", you don't count to one.
-  readonly property int barStateCount: {
+  // Waiting-on-you: the badge's number. Blocked or done and not yet
+  // seen — counts already skips acknowledged agents.
+  readonly property int attentionCount: {
     var rev = root.dataRev
     var c = root.counts
-    return root.barState === "idle" ? 0 : (c[root.barState] || 0)
+    return (c.blocked || 0) + (c.done || 0)
   }
 
-  readonly property bool barBusy: root.barStateCount >= 2
+  // ------------------------------------------------------- done dismissal
+  // The done alarm is a notification, so it can be dismissed: activating a
+  // done agent's window (focus or fresh spawn) counts as "I looked at it".
+  // Acks are derived state, not a ledger — they survive only while the
+  // agent is still reported done, so a finished agent that starts and
+  // finishes AGAIN re-alerts with no bookkeeping. Everything downstream
+  // (bar state, +N, tooltip, hero meta) derives from counts, which simply
+  // skip acked agents.
+  property var acked: ({})
+
+  function pruneDoneAcks() {
+    var keep = {}
+    for (var i = 0; i < root.agents.length; i++) {
+      var a = root.agents[i]
+      if ((a.agent_status || "") === "done" && root.acked[a.pane_id])
+        keep[a.pane_id] = true
+    }
+    root.acked = keep
+  }
+
+  function ackPane(paneId) {
+    if (!paneId || root.acked[paneId])
+      return
+    var next = {}
+    for (var k in root.acked) next[k] = root.acked[k]
+    next[paneId] = true
+    root.acked = next
+    root.dataRev++
+  }
 
   readonly property var counts: {
     var rev = root.dataRev
     var c = { working: 0, blocked: 0, done: 0, idle: 0, unknown: 0 }
     for (var i = 0; i < root.agents.length; i++) {
       var s = root.agents[i].agent_status || "unknown"
+      if (s === "done" && root.acked[root.agents[i].pane_id])
+        continue
       if (c[s] !== undefined) c[s]++
     }
     return c
@@ -113,7 +143,7 @@ Panel {
   }
 
   Component.onCompleted: {
-    hdProbe.running = true
+    whProbe.running = true
     root.poll()
   }
   onOpenedChanged: if (opened) {
@@ -136,8 +166,10 @@ Panel {
         var parts = String(text).split("\u001e")
         try {
           var aDoc = JSON.parse(parts[0])
-          if (aDoc && aDoc.result && aDoc.result.agents)
+          if (aDoc && aDoc.result && aDoc.result.agents) {
             root.agents = aDoc.result.agents
+            root.pruneDoneAcks()
+          }
         } catch (e) { /* keep last good data */ }
         try {
           var wDoc = JSON.parse((parts[1] || "").trim())
@@ -155,19 +187,19 @@ Panel {
     }
   }
 
-  // The launcher (`hd`) resolves through the user's login PATH; the bar's
+  // The launcher (`wh`) resolves through the user's login PATH; the bar's
   // own env may be the compositor's minimal set, so resolve once and prefer
   // the absolute fallback if `command -v` finds nothing.
   Process {
-    id: hdProbe
+    id: whProbe
     command: ["bash", "-lc",
-              "command -v hd || echo \"$HOME/.config/omarchy/plugins/hd-herdr/hd/hd\""]
+              "command -v wh || echo \"$HOME/.config/omarchy/plugins/winherd/wh/wh\""]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
         var p = String(text).trim().split("\n")[0]
         if (p && p.indexOf("/") === 0)
-          root.hdBin = p
+          root.whBin = p
       }
     }
   }
@@ -210,14 +242,17 @@ Panel {
       focusProc.command = ["hyprctl", "dispatch",
                            'hl.dsp.focus({ window = "address:' + address + '" })']
     } else {
-      var hd = root.hdBin || "hd"
+      var wh = root.whBin || "wh"
       // --force: the row promises a window on this pane, and the fifo guard
-      // inside hd would otherwise close the spawned window before the user
+      // inside wh would otherwise close the spawned window before the user
       // can read its hint.
       focusProc.command = ["hyprctl", "dispatch",
-                           'hl.dsp.exec_cmd("foot -T \'hd pane ' + paneId +
-                           "\' -e " + hd + " " + paneId + ' --force")']
+                           'hl.dsp.exec_cmd("foot -T \'wh pane ' + paneId +
+                           "\' -e " + wh + " " + paneId + ' --force")']
     }
+    // Focus == clear: being taken to the agent IS the acknowledgment, for
+    // both the focus branch and the fresh-window spawn branch.
+    root.ackPane(paneId)
     focusProc.running = true
   }
 
@@ -227,17 +262,46 @@ Panel {
 
   // ------------------------------------------------------------- layout
 
-  // The state disc shared by the bar icon, the hero and every panel row —
-  // one shape language everywhere. Idle renders as a faint hollow ring.
-  component StateDisc: Rectangle {
+  // The attention badge: the bar icon and the hero in one component.
+  // One disc, the waiting-on-you count knocked out inside (blocked +
+  // done, minus dismissed); color = worst state present among the
+  // agents. A disc in the standard slot never crams two digits: from
+  // ten up the badge grows sideways into a pill carrying the full
+  // number (the clock-width precedent).
+  component StateBadge: Rectangle {
+    property string status: root.barState
+    property int count: root.attentionCount
+    readonly property bool hollow: status === "idle" || status === "unknown"
+    width: count >= 10 ? 26 : 14
+    height: 14
+    radius: height / 2
+    color: hollow ? "transparent" : root.stateColor(status)
+    border.width: hollow ? 2 : 0
+    border.color: Qt.darker(root.foreground, 1.25)
+    Text {
+      visible: parent.count > 0
+      anchors.centerIn: parent
+      textFormat: Text.PlainText
+      text: parent.count
+      color: "white"
+      font.family: root.fontFamily
+      font.pixelSize: parent.count >= 10 ? 9 : 10
+      font.bold: true
+    }
+  }
+
+  // The plain state dot for panel rows: one agent per row, so a number
+  // inside would always read 1 — color alone carries the status; idle
+  // rows render the hollow ring.
+  component StateDot: Rectangle {
     property string status: "idle"
-    width: status === "idle" ? 9 : 11
+    readonly property bool hollow: !(status === "blocked" || status === "working" || status === "done")
+    width: hollow ? 10 : 13
     height: width
     radius: width / 2
-    color: status === "idle" ? "transparent" : root.stateColor(status)
-    border.width: status === "idle" ? 1.5 : 0
-    border.color: root.stateColor(status)
-    opacity: status === "idle" ? 0.55 : 1
+    color: hollow ? "transparent" : root.stateColor(status)
+    border.width: hollow ? 2 : 0
+    border.color: Qt.darker(root.foreground, 1.25)
   }
 
   // One agent row in the first-party panel anatomy: state disc column,
@@ -267,7 +331,7 @@ Panel {
         Layout.preferredWidth: Style.space(22)
         Layout.alignment: Qt.AlignVCenter
         implicitHeight: agentTitle.implicitHeight + agentSub.implicitHeight + Style.space(1)
-        StateDisc {
+        StateDot {
           status: agentRowSurface.agent ? agentRowSurface.agent.agent_status : "idle"
           anchors.centerIn: parent
         }
@@ -349,54 +413,20 @@ Panel {
     anchors.fill: parent
     bar: root.bar
 
-    // Custom painted icon (shared StateDisc), not a font glyph: centers by
-    // construction, carries state color reliably, never depends on which
-    // unicode plane the user's Nerd Font assigns to a PUA slot. working =
-    // dot, blocked = red badge with !, done = blue badge with check,
-    // idle/unknown = faint hollow ring. From two agents sharing the state
-    // a small +N joins the disc and the slot widens to hold it (the clock
-    // changes width with the time; same precedent).
+    // Custom painted badge, not a font glyph: centers by construction,
+    // carries the state color and the waiting count reliably, never
+    // depends on which unicode plane the user's Nerd Font assigns to a
+    // PUA slot. The count (blocked + done waiting on you) lives inside
+    // the disc; nothing is ever appended beside it.
     iconComponent: Component {
-      Row {
-        anchors.centerIn: parent
-        spacing: Style.space(3)
+      Item {
+        anchors.fill: parent
 
-        Item {
-          anchors.verticalCenter: parent.verticalCenter
-          implicitWidth: 11
-          implicitHeight: 11
-
-          StateDisc {
-            status: root.barState
-            anchors.centerIn: parent
-          }
-
-          Text {
-            visible: root.barState === "blocked" || root.barState === "done"
-            anchors.centerIn: parent
-            textFormat: Text.PlainText
-            text: root.barState === "blocked" ? "!" : "\u2713"
-            color: "#1c1c22"
-            font.family: root.fontFamily
-            font.pixelSize: 9
-            font.bold: true
-          }
-        }
-
-        Text {
-          visible: root.barBusy
-          textFormat: Text.PlainText
-          text: "+" + root.barStateCount
-          color: root.stateColor(root.barState)
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
-          font.bold: true
-          anchors.verticalCenter: parent.verticalCenter
+        StateBadge {
+          anchors.centerIn: parent
         }
       }
     }
-
-    slotSize: root.barBusy ? Style.bar.iconSlot + Style.space(22) : Style.bar.iconSlot
 
     tooltipText: root.barTooltip
 
@@ -450,7 +480,7 @@ Panel {
               Item {
                 implicitWidth: Style.font.display
                 implicitHeight: Style.font.display
-                StateDisc { status: root.barState; anchors.centerIn: parent; scale: 1.5 }
+                StateBadge { status: root.barState; anchors.centerIn: parent; scale: 1.5 }
               }
             }
             foreground: root.foreground
@@ -463,7 +493,7 @@ Panel {
             visible: root.agents.length === 0
             width: parent.width
             textFormat: Text.PlainText
-            text: "No agents in this session. Open a pane with hd and run one."
+            text: "No agents in this session. Open a pane with wh and run one."
             color: root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.body

@@ -1,4 +1,4 @@
-# hd — Architecture Notes (ground truth)
+# wh — Architecture Notes (ground truth)
 
 Source of truth: empirical probes against the **running fork server** (`0.9.3-rootshell.0.1.9`),
 the rootshell Swift client (clone @ /tmp/opencode/rootshell), the fork server source
@@ -17,21 +17,21 @@ and rootshell issues #278 / #407.
 - **Model B** (user-confirmed): everything in the `default` session; per-project
   workspaces named by cwd basename; each laptop window = ONE pane of that shared
   session via a custom pass-through control-stream client; iPhone (rootshell)
-  attaches to the same panes natively. Win+Enter stays stock (plain foot); `hd`
-  / `hd list` do the connecting; sidebar collapsed globally; bar widget carries
+  attaches to the same panes natively. Win+Enter stays stock (plain foot); `wh`
+  / `wh list` do the connecting; sidebar collapsed globally; bar widget carries
   agent state (≤3 priority dots + badge popup).
 - **Sequencing**: `omarchy update` first, then build. Packaging: all-in-one git
   repo (omarchy plugin manifest for the bar widget + install.sh for the rest).
 - **Issue #278 (sticky-size)**: claim discipline only on activation edges;
   `claim:false` for routine updates; takeover never automatic; owner surfaced in UI.
 - **Issue #407 (detach/resume)**: window close = detach + `control.close`;
-  attaching to a pane that already has a live `hd` window focuses that window
+  attaching to a pane that already has a live `wh` window focuses that window
   instead of silently double-attaching (second attach requires `--new`).
 
 ## 1. Transport & handshake (verified live)
 
 - Spawn local process: `herdr control` (optionally `--session NAME`; env for the
-  bridge: `HERDR_CONTROL_CLIENT=hd/<version>`, `HERDR_CONTROL_PROTOCOL=3`).
+  bridge: `HERDR_CONTROL_CLIENT=wh/<version>`, `HERDR_CONTROL_PROTOCOL=3`).
   Unset `HERDR_ENV`/`TERM_PROGRAM` before launching from inside a herdr pane.
 - **The client sends no hello.** First stdout line (unsolicited):
   `{"id":"control","result":{"type":"control_opened","connection_id":…,"boot_id":"…-…","version":"0.9.3-rootshell.0.1.9","protocol":22,"capabilities":{"live_handoff":true,"detached_server_daemon":true,"endpoint_protocol_generation":1,"surface_interest":true,"health_check":true,"ssh_agent_registration":false,"terminal_control_stream":3,"control_features":["shared_attach","geometry_ownership","geometry_controller","control_list","client_identity","query_authority","event_drain","event_gap","auto_input","pane_geometry"],"server_pid":…},"control_protocol":3}}`
@@ -122,7 +122,7 @@ and rootshell issues #278 / #407.
 - `claim:true` ONLY: (a) first push when owner is unknown/none, (b) activation
   edge — attach, or our foot window becoming the focused Hyprland window
   (watch `hyprland-ipc socket2` `activewindow` events), (c) explicit user action
-  (`hd take`, divider drag on a foreign tab). One-shot, consumed on send.
+  (`wh take`, divider drag on a foreign tab). One-shot, consumed on send.
 - All other resizes `claim:false` (stored server-side, applied "the moment we
   interact"). Owners change only via server events — never self-evict.
 - Floor: runtime clamps pane grids to ≥4 cols ×2 rows (`runtime.rs:252`).
@@ -144,17 +144,17 @@ and rootshell issues #278 / #407.
 → `state_ansi` → DECOM-aware CUP to cursor → pending-wrap cell reprint (if any,
 with pen_ansi) → `\e[?2026l`. Prefix each replay with CAN + authority marker.
 
-## 8. hd components (to build)
+## 8. wh components (to build)
 
 | Piece | Notes |
 |---|---|
-| `hd` (bash→python entry) | arg verb: attach flow / `list` (fzf) / take / status. Creates workspace (cwd basename, reuse if exists) + tab w/ single root pane (CLI `tab create --cwd … --no-focus`), then execs the pass-through client in THIS window. |
-| `hd-client` (python3 stdlib only) | the control-stream terminal: spawn bridge, subscribe, snapshot, attach target pane, byte-pump (output→stdout, stdin→input, replies→auto), geometry push, gap/snapshot recovery, keepalive, clean close. Titles: `hd:<workspace>/<pane>` (+agent/status suffix). |
-| `hd list` | fzf over snapshot panes (`workspace/tab · agent status · cwd`), attach current window. |
-| `hd status` / `agent list` for the widget | JSON API polling (`herdr agent list` every 2s) — event feeds proven but scoped; polling is robust and cross-session. |
-| Bar widget (omarchy plugin QML) | ≤3 dots (blocked→done→working, latest first), badge popup grouped by workspace; click = `hl.dsp.focus({window = "title:hd:[^ ]*<pane>"})` or spawn `hd <pane>`. |
-| Hyprland focus watcher | socket2 `activewindow>>class,title` → send `ACTIVATE` to the matching hd-client over its control fifo → claim:true push. |
-| Installer + repo | `~/repos/hd-herdr`: `hd/` client, `plugin/` manifest+QML, `install.sh` (checks omarchy, herdr fork presence & version, PATH, config.toml sidebar collapse, foot app-ids, hyprctl form). |
+| `wh` (bash→python entry) | arg verb: attach flow / `list` (fzf) / take / status. Creates workspace (cwd basename, reuse if exists) + tab w/ single root pane (CLI `tab create --cwd … --no-focus`), then execs the pass-through client in THIS window. |
+| `wh-client` (python3 stdlib only) | the control-stream terminal: spawn bridge, subscribe, snapshot, attach target pane, byte-pump (output→stdout, stdin→input, replies→auto), geometry push, gap/snapshot recovery, keepalive, clean close. Titles: `wh:<workspace>/<pane>` (+agent/status suffix). |
+| `wh list` | fzf over snapshot panes (`workspace/tab · agent status · cwd`), attach current window. |
+| `wh status` / `agent list` for the widget | JSON API polling (`herdr agent list` every 2s) — event feeds proven but scoped; polling is robust and cross-session. |
+| Bar widget (omarchy plugin QML) | ≤3 dots (blocked→done→working, latest first), badge popup grouped by workspace; click = `hl.dsp.focus({window = "title:wh:[^ ]*<pane>"})` or spawn `wh <pane>`. |
+| Hyprland focus watcher | socket2 `activewindow>>class,title` → send `ACTIVATE` to the matching wh-client over its control fifo → claim:true push. |
+| Installer + repo | `~/repos/winherd`: `wh/` client, `plugin/` manifest+QML, `install.sh` (checks omarchy, herdr fork presence & version, PATH, config.toml sidebar collapse, foot app-ids, hyprctl form). |
 
 ## 9. Open verifications (before v1 ships)
 

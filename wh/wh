@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""hd — attach tabs/panes of the default herdr session to this foot window.
+"""wh — attach tabs/panes of the default herdr session to this foot window.
 
 Modes:
-  hd                # resolve-or-create the workspace for cwd (label = basename)
+  wh                # resolve-or-create the workspace for cwd (label = basename)
                     # + reuse its first pane or create a fresh one-tab pane,
                     # then rebind THIS window to that pane (pass-through client)
-  hd <PANE_ID>      # attach a specific pane in this window
-  hd list           # fzf over all panes of the session, rebind this window
-  hd take           # tell the running client in this window to claim geometry
-  hd status         # short agent/pane status summary (JSON), for tooling
+  wh <PANE_ID>      # attach a specific pane in this window
+  wh list           # fzf over all panes of the session, rebind this window
+  wh take           # tell the running client in this window to claim geometry
+  wh status         # short agent/pane status summary (JSON), for tooling
 
 Protocol ground truth: docs/architecture-notes.md. Claim discipline follows
 rootshell's own client (rootshell issue #278): claim geometry only on
@@ -20,8 +20,8 @@ import shutil
 import subprocess
 import sys
 
-CLIENT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hd_client.py")
-HD_VERSION = "0.1.0"
+CLIENT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wh_client.py")
+WH_VERSION = "0.1.0"
 HERDR_ENV_VARS = ("HERDR_ENV", "TERM_PROGRAM")
 
 
@@ -49,7 +49,7 @@ def call(*args, check=True):
     r = subprocess.run(["env", "-u", "HERDR_ENV", "-u", "TERM_PROGRAM", herdr_bin(), *args],
                        capture_output=True, text=True, env=herdr_env())
     if check and r.returncode != 0:
-        print(f"hd: herdr {' '.join(args[:2])} failed: {r.stderr.strip()[:240]}", file=sys.stderr)
+        print(f"wh: herdr {' '.join(args[:2])} failed: {r.stderr.strip()[:240]}", file=sys.stderr)
         sys.exit(1)
     return r
 
@@ -61,7 +61,7 @@ def result_of(*args):
 def server_status():
     r = call("status", check=False)
     if r.returncode != 0:
-        print("hd: herdr server is not running. Start it once with: herdr", file=sys.stderr)
+        print("wh: herdr server is not running. Start it once with: herdr", file=sys.stderr)
         sys.exit(1)
     return r.stdout
 
@@ -111,24 +111,24 @@ def pick_and_prepare_target():
 
 def fifo_for_pane(pane_id):
     return os.path.join(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"),
-                        "hd", f"{pane_id}.ctl")
+                        "wh", f"{pane_id}.ctl")
 
 
 def pane_is_attached(pane_id):
-    """A live hd client in *some* window owns this pane iff its fifo exists."""
+    """A live wh client in *some* window owns this pane iff its fifo exists."""
     return os.path.exists(fifo_for_pane(pane_id))
 
 
 def attached_hint(pane_id, force_cmd):
-    print(f"hd: pane {pane_id} already has a live window. In that window run "
-          f"'hd take' to fit geometry, or 'hd list' to pick another pane; run "
+    print(f"wh: pane {pane_id} already has a live window. In that window run "
+          f"'wh take' to fit geometry, or 'wh list' to pick another pane; run "
           f"'{force_cmd}' to view it anyway (shared attach).", file=sys.stderr)
 
 
 def mode_list():
     """fzf over panes; rebinds THIS window to the pick."""
     if shutil.which("fzf") is None:
-        print("hd: needs fzf installed", file=sys.stderr)
+        print("wh: needs fzf installed", file=sys.stderr)
         sys.exit(1)
     try:
         workspaces = {w["workspace_id"]: w for w in result_of("workspace", "list")["workspaces"]}
@@ -155,9 +155,9 @@ def mode_list():
     if not pane_id:
         sys.exit(0)
     if pane_is_attached(pane_id) and "--force" not in args:
-        attached_hint(pane_id, "hd list --force")
+        attached_hint(pane_id, "wh list --force")
         sys.exit(1)
-    print(f"hd: attaching to {key}")
+    print(f"wh: attaching to {key}")
     os.execvp("python3", ["python3", CLIENT, "--pane", pane_id])
 
 
@@ -175,14 +175,14 @@ def main():
         elif mode == "take":
             # the running client's fifo is derivable from the pane env (the
             # user types this INSIDE a pane owned by a live client)
-            fifo = os.environ.get("HD_FIFOPATH") or fifo_for_pane(
-                os.environ.get("HERDR_PANE_ID") or os.environ.get("HD_PANE", ""))
+            fifo = os.environ.get("WH_FIFOPATH") or fifo_for_pane(
+                os.environ.get("HERDR_PANE_ID") or os.environ.get("WH_PANE", ""))
             if not os.path.exists(fifo):
-                if os.environ.get("HERDR_PANE_ID") or os.environ.get("HD_PANE"):
-                    print("hd: no live hd client in this window "
-                          "(attach first, e.g. 'hd list')", file=sys.stderr)
+                if os.environ.get("HERDR_PANE_ID") or os.environ.get("WH_PANE"):
+                    print("wh: no live wh client in this window "
+                          "(attach first, e.g. 'wh list')", file=sys.stderr)
                 else:
-                    print("hd: 'hd take' must run inside a herdr pane", file=sys.stderr)
+                    print("wh: 'wh take' must run inside a herdr pane", file=sys.stderr)
                 sys.exit(1)
             with open(fifo, "w") as f:
                 f.write("claim\n")
@@ -191,26 +191,26 @@ def main():
         return
 
     if os.environ.get("HERDR_ENV") == "1":
-        print("hd: you are inside the herdr TUI. Open a plain foot window "
-              "(Win+Enter) and run hd there.", file=sys.stderr)
+        print("wh: you are inside the herdr TUI. Open a plain foot window "
+              "(Win+Enter) and run wh there.", file=sys.stderr)
         sys.exit(1)
-    if os.environ.get("HD_PANE"):
-        print(f"hd: this window is already attached to pane {os.environ['HD_PANE']}. "
-              "Use 'hd list' to pick another, 'hd take' to fit.", file=sys.stderr)
+    if os.environ.get("WH_PANE"):
+        print(f"wh: this window is already attached to pane {os.environ['WH_PANE']}. "
+              "Use 'wh list' to pick another, 'wh take' to fit.", file=sys.stderr)
         sys.exit(1)
     server_status()
     if args:
         pane_id = args[0]
         if pane_is_attached(pane_id) and "--force" not in args:
-            attached_hint(pane_id, f"hd {pane_id} --force")
+            attached_hint(pane_id, f"wh {pane_id} --force")
             sys.exit(1)
-        print(f"hd: attaching to {pane_id}")
+        print(f"wh: attaching to {pane_id}")
         os.execvp("python3", ["python3", CLIENT, "--pane", pane_id, "--workspace-label", ""])
     target = pick_and_prepare_target()
     if pane_is_attached(target["pane_id"]) and "--force" not in args:
-        attached_hint(target["pane_id"], "hd --force")
+        attached_hint(target["pane_id"], "wh --force")
         sys.exit(1)
-    print(f"hd: attaching to {target['ws_label']}/{target['tab_label'] or ''} "
+    print(f"wh: attaching to {target['ws_label']}/{target['tab_label'] or ''} "
           f"({target['pane_id']})")
     os.execvp("python3", ["python3", CLIENT,
                           "--pane", target["pane_id"],
