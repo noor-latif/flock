@@ -39,9 +39,12 @@ bottom; anything marked OPEN needs a grilling round before implementation.
 
 - ☑ 1. GitHub public repo, account `noor-latif` (gh CLI authenticated, https).
   Repo name `winherd`. Push main + tag v0.1.0.
-- ☐ 2. Verify the friends path from a clean clone: `omarchy plugin add
-  https://github.com/noor-latif/winherd` (or the repo-root install), then
-  README/getting-started line for `wh` in a plain foot window.
+- ☑ 2. Verify the friends path from a clean clone: fresh `git clone` of the
+  public URL — manifest id, badge, LICENSE, executable install.sh confirmed;
+  placeholder/identity greps empty over the whole history (one real email
+  was found in AGENTS.md post-publish and purged via filter-branch +
+  force-push + tag retarget). Full `omarchy plugin add` on an untouched
+  omarchy box is the one thing only a friend's machine can prove.
 - ☑ 3. Embed the real URL in README + install.sh.
 
 ## Phase 3 — keyboard + filter
