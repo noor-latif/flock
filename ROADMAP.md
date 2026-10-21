@@ -6,12 +6,15 @@ bottom; anything marked OPEN needs a grilling round before implementation.
 
 ## Phase 1 — chicken fix + quick wins (friends blockers)
 
-- ☐ 1. Ghost-terminal hardening — when the target pane dies between launcher
+- ☑ 1. Ghost-terminal hardening — when the target pane dies between launcher
   pick and client attach, `wh_client.py` loops "not_found" every ~20s on a
-  stale terminal id (seen live 2026-10-21 13:15). Fix: resolve fresh topology
-  on reconnect; if the pane is gone from herdr entirely, park with a clear
-  message ("pane closed — run wh in its workspace again") instead of chasing
-  the ghost id.
+  stale terminal id (seen live 2026-10-21 13:15). FIXED: `apply_topology`
+  re-resolves against the CLI before any first-connect attach (snapshot lag
+  guard) and parks when the pane is not in herdr anymore;
+  `attach_now → _attach_with` re-resolves once on `not_found`, and a second
+  miss on the fresh id parks with "pane closed — run wh in its workspace
+  again". Terminal-only launches keep working (no pane id → no park logic).
+  Stub-verified: 5 paths (park/re-resolve/vanish/terminal-only/lag).
 - ☐ 2. Panel auto-dismiss — clicking a row focuses/spawns the agent's window
   AND closes the popup. Hook: end of `applyClients` → `root.close()`.
 - ☐ 3. Persisted dismissals — acks are in shell memory today; a restart

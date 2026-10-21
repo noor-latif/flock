@@ -733,18 +733,32 @@ class Client:
     def apply_topology(self, snapshot, want_attach=False):
         pane = next((p for p in snapshot.get("panes", [])
                      if p["pane_id"] == self.pane_id), None)
-        if pane is None:
-            if self.terminal_id and want_attach:
-                self.attach_now()
-                return
-            self.park(f"pane {self.pane_id} not found (it may have been closed)")
+        if pane is None and self.pane_id and want_attach:
+            # a lagging snapshot must not poison us with a ghost terminal:
+            # resolve once against the CLI before giving up
+            pane = self.fetch_pane()
+        if pane is None and self.pane_id:
+            self.park(f"pane {self.pane_id} not found (it may have been "
+                      "closed). Run wh in its workspace again, or pick "
+                      "another with 'wh list'.")
             return
-        self.terminal_id = pane.get("terminal_id") or self.terminal_id
-        self.agent_status = pane.get("agent_status") or ""
-        self.agent_kind = pane.get("agent") or ""
-        self.set_title()
+        if pane is not None:
+            self.terminal_id = pane.get("terminal_id") or self.terminal_id
+            self.agent_status = pane.get("agent_status") or ""
+            self.agent_kind = pane.get("agent") or ""
+            self.set_title()
         if want_attach:
             self.attach_now()
+
+    def fetch_pane(self):
+        """Fresh pane record straight from the CLI — the bridge snapshot can
+        lag a just-started server or a pane that vanished mid-launch."""
+        try:
+            r = call_herdr("pane", "list")
+            panes = json.loads(r.stdout)["result"]["panes"]
+            return next((p for p in panes if p["pane_id"] == self.pane_id), None)
+        except Exception:
+            return None
 
     def refresh_topology(self):
         try:
@@ -768,9 +782,12 @@ class Client:
         if not self.terminal_id:
             self.log("no terminal id known; cannot attach")
             return
+        self._attach_with(self.terminal_id, allow_refresh=True)
+
+    def _attach_with(self, terminal_id, allow_refresh):
         try:
             res = self.bridge.request("terminal.attach",
-                                      {"target": self.terminal_id,
+                                      {"target": terminal_id,
                                        "answer_queries": "client",
                                        "history_limit_bytes": HISTORY_LIMIT,
                                        "takeover": False}, out_id="att")
@@ -783,6 +800,26 @@ class Client:
                 self.park("another client owns this pane right now "
                           "(rootshell on your phone, or another wh window). "
                           "'wh take' in a fresh window would claim it.")
+            elif "not_found" in msg and self.pane_id:
+                if not allow_refresh:
+                    # this was already a re-resolved fresh id and it still
+                    # does not exist: the pane is gone for good
+                    self.park(f"pane {self.pane_id} closed — run wh in its "
+                              "workspace again, or pick another with "
+                              "'wh list'.")
+                else:
+                    # the pane record is fresher than the bridge snapshot;
+                    # the terminal may have been reaped and reissued — one
+                    # re-resolve and retry
+                    fresh = self.fetch_pane()
+                    if fresh and fresh.get("terminal_id") \
+                            and fresh["terminal_id"] != terminal_id:
+                        self.terminal_id = fresh["terminal_id"]
+                        self._attach_with(self.terminal_id, allow_refresh=False)
+                    else:
+                        self.park(f"pane {self.pane_id} closed — run wh in "
+                                  "its workspace again, or pick another "
+                                  "with 'wh list'.")
             else:
                 self.log(f"attach: {msg}")
                 self.schedule_reconnect()
