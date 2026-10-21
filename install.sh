@@ -3,7 +3,7 @@
 #
 # Run from inside this repo (cloned or downloaded); no sudo involved:
 #
-#   git clone https://github.com/<you>/winherd.git && cd winherd && ./install.sh
+#   git clone https://github.com/noor-latif/winherd.git && cd winherd && ./install.sh
 #
 # What it does:
 #   1. checks the prerequisites (python3, fzf, foot, and a herdr binary that
@@ -104,7 +104,7 @@ if [[ -d "$REPO_DIR" && -f "$REPO_DIR/manifest.json" ]]; then
     fi
   else
     say "bar widget: install later with:
-      omarchy plugin add <this-repo-git-url> --enable
+      omarchy plugin add https://github.com/noor-latif/winherd --enable
    (repo root is the plugin: manifest.json must stay at the top)"
   fi
 fi

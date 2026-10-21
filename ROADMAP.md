@@ -28,13 +28,12 @@ bottom; anything marked OPEN needs a grilling round before implementation.
   badge/panel usage split, dismissal semantics + acks file documented, new
   troubleshooting rows (parking, ownership, title suffix), stale design
   text replaced with the badge language.
-- ◐ 5. Where-am-I feedback — attached foot windows show no indication of
-  which pane/tab they hold (window title exists but isn't visible anywhere;
-  in-window text would pollute agent scrollback — NOT acceptable).
-  Planned: reorder title so `pane <id> · <workspace>` survives bar-side
-  truncation, and verify the omarchy bar's title widget actually shows it.
-  OPEN decision: whether plain-shell (non-agent) panes also get a one-line
-  in-window notice after attach; agent panes never do.
+- ☑ 5. Where-am-I feedback — DISSOLVED, not a winherd surface: the confusion
+  was specific to opencode's own UI (the user hides opencode's right panel,
+  so its session title vanishes); every other agent shows its own title and
+  the popup already lists workspace + cwd + pane id per row. Title already
+  ends `pane <id>` for window matching. Revisit only if a shell-pane notice
+  is ever wanted; agent panes never get in-window text.
 
 ## Phase 2 — publish
 
@@ -51,8 +50,9 @@ bottom; anything marked OPEN needs a grilling round before implementation.
 - ☐ 1. Arrow keys move the row cursor, enter activates; CursorSurface
   keyboard-cursor contract (single highlight guarantee), mirroring
   /usr/share/omarchy/shell/plugins/panels/tailscale/Panel.qml machinery.
-- ☐ 2. Type-to-filter: typing opens a filter; matching style OPEN
-  (substring recommended first, fuzzy second) — grill round 2 territory.
+- ☐ 2. Type-to-filter: typing opens a filter; matching is fzf-style FUZZY
+  (grilled decision): subsequence match ranked by score — contiguous runs
+  and word-boundary hits win, position-independent otherwise.
 
 ## Phase 4 — activity chronology
 
@@ -76,7 +76,8 @@ bottom; anything marked OPEN needs a grilling round before implementation.
 - Dismissal semantics: focus == clear; activation focuses/spawns and marks
   seen; acked agents skip out of badge/tooltip/hero counts.
 - Chronology: sections reorder by activity (rows inside unchanged).
-- Keyboard: arrows + enter, plus type-to-filter.
+- Keyboard: arrows + enter, plus type-to-filter with FUZZY matching.
+- Where-am-I: dissolved (opencode's hidden panel, not winherd).
 - Publish target: GitHub public under noor-latif.
 - Order: chicken fix + quick wins first, publish fourth, chronology last.
 - Naming: repo/CLI/plugin all `winherd`/`wh` (hd → wh rename done 2026-10-21;
