@@ -21,9 +21,9 @@ bottom; anything marked OPEN needs a grilling round before implementation.
 - ☑ 3. Persisted dismissals — acks survive restarts in
   `${XDG_STATE_HOME:-~/.local/state}/winherd/acks.json` (debounced single
   write; same prune rule: ack lives only while its pane is still done).
-  Load/save/prune is instrumented with journal logs pending the unlock
-  restart, because the seeded fake id survived two polls with no error —
-  the chain has one silent link the logs will name. LIVE check pending.
+  LIVE VERIFIED 16:47: the instrumentation shows load parsed, prune fired,
+  and the file converged to {} — the earlier "untouched file" was the old
+  QML still running behind a refused restart.
 - ☑ 4. Friends-first README pass — fork is dependency #0 in a table, CLI vs
   badge/panel usage split, dismissal semantics + acks file documented, new
   troubleshooting rows (parking, ownership, title suffix), stale design
@@ -37,13 +37,12 @@ bottom; anything marked OPEN needs a grilling round before implementation.
 
 ## Phase 2 — publish
 
-- ☐ 1. GitHub public repo, account `noor-latif` (gh CLI authenticated, https).
+- ☑ 1. GitHub public repo, account `noor-latif` (gh CLI authenticated, https).
   Repo name `winherd`. Push main + tag v0.1.0.
 - ☐ 2. Verify the friends path from a clean clone: `omarchy plugin add
   https://github.com/noor-latif/winherd` (or the repo-root install), then
   README/getting-started line for `wh` in a plain foot window.
-- ☐ 3. Embed the real URL in README + install.sh (they still carry the
-  `<you>/winherd` placeholder).
+- ☑ 3. Embed the real URL in README + install.sh.
 
 ## Phase 3 — keyboard + filter
 
