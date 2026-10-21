@@ -80,10 +80,11 @@ def pick_and_prepare_target():
     def first_pane(workspace_id):
         tabs = sorted((t for t in snap["tabs"] if t["workspace_id"] == workspace_id),
                       key=lambda t: t.get("number", 9_999))
-        panes = {p["tab_id"]: [p for p in snap["panes"] if p["tab_id"] == t["tab_id"]]
-                 for t in tabs}
+        panes_by_tab = {}
+        for p in snap["panes"]:
+            panes_by_tab.setdefault(p["tab_id"], []).append(p)
         for t in tabs:
-            cands = [p for p in panes.get(t["tab_id"], [])]
+            cands = panes_by_tab.get(t["tab_id"], [])
             if cands:
                 # prefer a pane whose foreground cwd matches ours
                 same = [p for p in cands if (p.get("foreground_cwd") or p.get("cwd")) == cwd]
@@ -95,12 +96,23 @@ def pick_and_prepare_target():
         if ws:
             wid = ws["workspace_id"]
         else:
-            wid = result_of("workspace", "create", "--cwd", cwd,
-                            "--label", label, "--no-focus")["workspace"]
-        res = result_of("tab", "create", "--workspace", wid,
-                        "--cwd", cwd, "--no-focus")
-        target = res["root_pane"]
-        tab_id = res["tab"]["tab_id"]
+            res = result_of("workspace", "create", "--cwd", cwd,
+                            "--label", label, "--no-focus")
+            wobj = res["workspace"]
+            # The current fork returns the created workspace as an object
+            # that already ships its root tab and pane (cwd honored);
+            # older forks returned just the id string and the pane had to
+            # be created below. Accept both shapes.
+            wid = wobj["workspace_id"] if isinstance(wobj, dict) else wobj
+            root = res.get("root_pane") or {}
+            if isinstance(root, dict) and root.get("pane_id"):
+                target = root
+                tab_id = root.get("tab_id") or (res.get("tab") or {}).get("tab_id", "")
+        if target is None:
+            res = result_of("tab", "create", "--workspace", wid,
+                            "--cwd", cwd, "--no-focus")
+            target = res["root_pane"]
+            tab_id = res["tab"]["tab_id"]
     else:
         tab_id = target["tab_id"]
     ws_label = next((w["label"] for w in snap["workspaces"]
