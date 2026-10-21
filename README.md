@@ -1,7 +1,7 @@
 # winherd — one window, one agent
 
-`winherd` rebinds plain terminal windows to single panes of your [herdr](docs)
-session, so an agent gets a real, movable window with your tiling kept for
+`winherd` rebinds plain terminal windows to single panes of your herdr session,
+so an agent gets a real, movable window with your tiling kept for
 *you*. Its Omarchy bar widget shows every agent in the session as one status
 badge and a click-to-focus popup. Your iPhone (rootshell) pairing is
 unaffected — `wh` windows are just more clients of the same session.

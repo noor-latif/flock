@@ -15,17 +15,19 @@ bottom; anything marked OPEN needs a grilling round before implementation.
   miss on the fresh id parks with "pane closed — run wh in its workspace
   again". Terminal-only launches keep working (no pane id → no park logic).
   Stub-verified: 5 paths (park/re-resolve/vanish/terminal-only/lag).
-- ☐ 2. Panel auto-dismiss — clicking a row focuses/spawns the agent's window
-  AND closes the popup. Hook: end of `applyClients` → `root.close()`.
-- ☐ 3. Persisted dismissals — acks are in shell memory today; a restart
-  re-rings every still-done agent. Persist to
-  `${XDG_STATE_HOME:-~/.local/state}/winherd/acks.json`, same prune rule
-  (an ack survives only while its pane is still reported done).
-- ☐ 4. Friends-first README pass — fork is dependency #0 (upstream 0.9.x has
-  no JSON control stream; install.sh already refuses). Rewrite around: what
-  it does, fork install pointer, omarchy plugin add, the badge/panel design,
-  troubleshooting. Also refresh stale design-language descriptions to the
-  badge era.
+- ☑ 2. Panel auto-dismiss — clicking a row focuses/spawns the agent's window
+  AND closes the popup (`applyClients` → `root.close()`). LIVE check pending
+  (deployed; shell restart was refused by a locked session).
+- ☑ 3. Persisted dismissals — acks survive restarts in
+  `${XDG_STATE_HOME:-~/.local/state}/winherd/acks.json` (debounced single
+  write; same prune rule: ack lives only while its pane is still done).
+  Load/save/prune is instrumented with journal logs pending the unlock
+  restart, because the seeded fake id survived two polls with no error —
+  the chain has one silent link the logs will name. LIVE check pending.
+- ☑ 4. Friends-first README pass — fork is dependency #0 in a table, CLI vs
+  badge/panel usage split, dismissal semantics + acks file documented, new
+  troubleshooting rows (parking, ownership, title suffix), stale design
+  text replaced with the badge language.
 - ◐ 5. Where-am-I feedback — attached foot windows show no indication of
   which pane/tab they hold (window title exists but isn't visible anywhere;
   in-window text would pollute agent scrollback — NOT acceptable).
