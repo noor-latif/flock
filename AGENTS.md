@@ -1,15 +1,15 @@
-# AGENTS.md — winherd
+# AGENTS.md — flock
 
-winherd: herdr agents of the default rootshell-fork session, ONE WINDOW PER
+flock: herdr agents of the default rootshell-fork session, ONE WINDOW PER
 PANE, surfaced as an omarchy bar badge + popup. This repo IS the omarchy
-plugin (manifest.json at root) and ships the `wh` CLI. Start of any session:
+plugin (manifest.json at root) and ships the `fl` CLI. Start of any session:
 read ROADMAP.md (the tracked plan), then `git log --oneline -5`.
 
 ## Map
 
 - `BarWidget.qml` — bar badge + panel (popup). The only QML.
-- `wh/wh` — launcher: resolve-or-create workspace for cwd, attach one pane.
-- `wh/wh_client.py` — per-window pass-through client (control-stream bridge,
+- `fl/fl` — launcher: resolve-or-create workspace for cwd, attach one pane.
+- `fl/fl_client.py` — per-window pass-through client (control-stream bridge,
   VT pass-through, geometry ownership per rootshell#278 discipline).
 - `install.sh` — user-level installer (probes the fork's control stream).
 - `docs/architecture-notes.md` — fork protocol ground truth.
@@ -18,13 +18,13 @@ read ROADMAP.md (the tracked plan), then `git log --oneline -5`.
 ## Deploy + verify loop (after EVERY code edit)
 
 ```
-cp BarWidget.qml ~/.config/omarchy/plugins/winherd/BarWidget.qml          # qml
-cp wh/wh wh/wh_client.py ~/.config/omarchy/plugins/winherd/wh/            # plugin copy
-cp wh/wh wh/wh_client.py ~/.local/lib/winherd/ && echo ok                 # live CLI
+cp BarWidget.qml ~/.config/omarchy/plugins/flock/BarWidget.qml          # qml
+cp fl/fl fl/fl_client.py ~/.config/omarchy/plugins/flock/fl/            # plugin copy
+cp fl/fl fl/fl_client.py ~/.local/lib/flock/ && echo ok                 # live CLI
 omarchy-restart-shell                                                     # QML never hot-reloads
 journalctl --user _CMDLINE="quickshell -n -p /usr/share/omarchy/shell" --since "-20s" \
-  | grep -iE "winherd|not a type|Unable" | grep -v "qmlscanner\|portal"
-omarchy-shell winherd refresh     # expect "ok"
+  | grep -iE "flock|not a type|Unable" | grep -v "qmlscanner\|portal"
+omarchy-shell flock refresh     # expect "ok"
 ```
 Plugin QML does NOT hot-reload: the shell runs with QS_DISABLE_FILE_WATCHER=1,
 and "Local plugin changed, reloading" lines it logs are stale — restart to be
@@ -36,8 +36,8 @@ sure. Skip reload lines only when a NEW startup block follows them.
   server reload-config` after config edits). No window spawns / panel
   toggles / focus steals without saying so first.
 - herdr calls in tool shells need `env -u HERDR_ENV -u TERM_PROGRAM bash -lc`.
-- Do not run `wh` bare in a tool shell — it execvp's a client that takes over
-  stdin. Test topology with stubs (runpy + pick_and_prepare_target) or `wh
+- Do not run `fl` bare in a tool shell — it execvp's a client that takes over
+  stdin. Test topology with stubs (runpy + pick_and_prepare_target) or `fl
   status`.
 
 ## Design language (do not regress)
@@ -64,7 +64,7 @@ sure. Skip reload lines only when a NEW startup block follows them.
   out-of-scope var → NameError; lesson: no scoping tricks in this repo).
 - `herdr workspace close <id>` (positional).
 - Window titles must END with `pane <pane_id>` — the widget's focus matcher
-  scans hyprctl clients for exactly that needle; `wh pane <id>` is the
+  scans hyprctl clients for exactly that needle; `fl pane <id>` is the
   pre-attach foot title and survives the same scan.
 
 ## Working with the user
@@ -80,4 +80,4 @@ sure. Skip reload lines only when a NEW startup block follows them.
   plan item; ROADMAP status tick and commit in the same commit when
   possible.
 - GitHub ssh/https push available: gh CLI authenticated as noor-latif,
-  https protocol. Public repo name for phase 2: github.com/noor-latif/winherd.
+  https protocol. Public repo name for phase 2: github.com/noor-latif/flock.

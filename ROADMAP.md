@@ -1,4 +1,4 @@
-# winherd — tracked plan
+# flock — tracked plan
 
 Status markers: ☐ todo · ◐ in progress · ☑ done. Update them here, not in chat.
 Decisions locked in grilling round 1 are recorded in the decision log at the
@@ -7,19 +7,19 @@ bottom; anything marked OPEN needs a grilling round before implementation.
 ## Phase 1 — chicken fix + quick wins (friends blockers)
 
 - ☑ 1. Ghost-terminal hardening — when the target pane dies between launcher
-  pick and client attach, `wh_client.py` loops "not_found" every ~20s on a
+  pick and client attach, `fl_client.py` loops "not_found" every ~20s on a
   stale terminal id (seen live 2026-10-21 13:15). FIXED: `apply_topology`
   re-resolves against the CLI before any first-connect attach (snapshot lag
   guard) and parks when the pane is not in herdr anymore;
   `attach_now → _attach_with` re-resolves once on `not_found`, and a second
-  miss on the fresh id parks with "pane closed — run wh in its workspace
+  miss on the fresh id parks with "pane closed — run fl in its workspace
   again". Terminal-only launches keep working (no pane id → no park logic).
   Stub-verified: 5 paths (park/re-resolve/vanish/terminal-only/lag).
 - ☑ 2. Panel auto-dismiss — clicking a row focuses/spawns the agent's window
   AND closes the popup (`applyClients` → `root.close()`). LIVE check pending
   (deployed; shell restart was refused by a locked session).
 - ☑ 3. Persisted dismissals — acks survive restarts in
-  `${XDG_STATE_HOME:-~/.local/state}/winherd/acks.json` (debounced single
+  `${XDG_STATE_HOME:-~/.local/state}/flock/acks.json` (debounced single
   write; same prune rule: ack lives only while its pane is still done).
   LIVE VERIFIED 16:47: the instrumentation shows load parsed, prune fired,
   and the file converged to {} — the earlier "untouched file" was the old
@@ -28,7 +28,7 @@ bottom; anything marked OPEN needs a grilling round before implementation.
   badge/panel usage split, dismissal semantics + acks file documented, new
   troubleshooting rows (parking, ownership, title suffix), stale design
   text replaced with the badge language.
-- ☑ 5. Where-am-I feedback — DISSOLVED, not a winherd surface: the confusion
+- ☑ 5. Where-am-I feedback — DISSOLVED, not a flock surface: the confusion
   was specific to opencode's own UI (the user hides opencode's right panel,
   so its session title vanishes); every other agent shows its own title and
   the popup already lists workspace + cwd + pane id per row. Title already
@@ -38,7 +38,7 @@ bottom; anything marked OPEN needs a grilling round before implementation.
 ## Phase 2 — publish
 
 - ☑ 1. GitHub public repo, account `noor-latif` (gh CLI authenticated, https).
-  Repo name `winherd`. Push main + tag v0.1.0.
+  Repo name `flock`. Push main + tag v0.1.0.
 - ☑ 2. Verify the friends path from a clean clone: fresh `git clone` of the
   public URL — manifest id, badge, LICENSE, executable install.sh confirmed;
   placeholder/identity greps empty over the whole history (one real email
@@ -79,19 +79,21 @@ bottom; anything marked OPEN needs a grilling round before implementation.
   seen; acked agents skip out of badge/tooltip/hero counts.
 - Chronology: sections reorder by activity (rows inside unchanged).
 - Keyboard: arrows + enter, plus type-to-filter with FUZZY matching.
-- Where-am-I: dissolved (opencode's hidden panel, not winherd).
+- Where-am-I: dissolved (opencode's hidden panel, not flock).
 - Publish target: GitHub public under noor-latif.
 - Order: chicken fix + quick wins first, publish fourth, chronology last.
-- Naming: repo/CLI/plugin all `winherd`/`wh` (hd → wh rename done 2026-10-21;
-  never reintroduce `hd` — it shadows hexdump's alias on some distros).
+- Naming (final, grill rounds 3-4): repo/CLI/plugin all `flock`/`fl`.
+  Banned: `hd` (shadows hexdump's alias on some distros); `winherd`/`wh`
+  (skim-read as "herdr for Windows 11" — the rename was made hours after
+  first publish, zero users harmed).
 
 ## Environment facts (for any session touching this)
 
 - Repo = plugin: manifest.json at root; deploy = rsync-minus-.git into
-  ~/.config/omarchy/plugins/winherd/ (Artificial process documented in
+  ~/.config/omarchy/plugins/flock/ (Artificial process documented in
   AGENTS.md along with the restart/verify loop).
 - Server state is the user's live session: NEVER `herdr server stop`;
   config goes through `herdr server reload-config`.
-- Fork quirks live in docs/architecture-notes.md and fixed into wh;
+- Fork quirks live in docs/architecture-notes.md and fixed into fl;
   workspace create returns an object with a builtin root pane (both id
   and object shapes accepted).

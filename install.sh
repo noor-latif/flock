@@ -1,28 +1,28 @@
 #!/usr/bin/env bash
-# wh — install the herdr companion client + bar widget for Omarchy.
+# fl — install the herdr companion client + bar widget for Omarchy.
 #
 # Run from inside this repo (cloned or downloaded); no sudo involved:
 #
-#   git clone https://github.com/noor-latif/winherd.git && cd winherd && ./install.sh
+#   git clone https://github.com/noor-latif/flock.git && cd flock && ./install.sh
 #
 # What it does:
 #   1. checks the prerequisites (python3, fzf, foot, and a herdr binary that
 #      speaks the JSON control stream — the rootshell fork, not upstream)
-#   2. installs the `wh` launcher + client into ~/.local
+#   2. installs the `fl` launcher + client into ~/.local
 #   3. optionally installs the bar widget as an omarchy plugin and enables it
-#   4. optionally sets sidebar_start_collapsed in the herdr config (with `wh`
+#   4. optionally sets sidebar_start_collapsed in the herdr config (with `fl`
 #      every pane lives in its own window, so the in-herdr sidebar is dead
 #      weight)
 set -uo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LIB_DIR="$HOME/.local/lib/winherd"
+LIB_DIR="$HOME/.local/lib/flock"
 BIN_DIR="$HOME/.local/bin"
 HERDR_CONFIG="$HOME/.config/herdr/config.toml"
 
-say()  { printf 'wh-install: %s\n' "$*"; }
-fail() { printf 'wh-install: FAIL: %s\n' "$*" >&2; exit 1; }
-skip() { printf 'wh-install: (skipped) %s\n' "$*"; }
+say()  { printf 'fl-install: %s\n' "$*"; }
+fail() { printf 'fl-install: FAIL: %s\n' "$*" >&2; exit 1; }
+skip() { printf 'fl-install: (skipped) %s\n' "$*"; }
 
 interactive() { [[ -t 0 && -t 1 ]]; }
 
@@ -33,9 +33,9 @@ if ! interactive; then
   fi
 elif command -v gum >/dev/null 2>&1; then
   gum style --border normal --padding "1 2" \
-    "install wh?" \
+    "install fl?" \
     "" \
-    "• adds ~/.local/lib/winherd (client) and ~/.local/bin/wh (launcher)" \
+    "• adds ~/.local/lib/flock (client) and ~/.local/bin/fl (launcher)" \
     "• touches nothing outside \$HOME" \
     "" \
     "Rebinds a plain foot window to one herdr pane; the iPhone (rootshell)" \
@@ -45,26 +45,26 @@ fi
 
 # ----------------------------------------------------------- prerequisites
 python3 --version >/dev/null 2>&1 || fail "python3 is required (comes with omarchy)"
-command -v fzf   >/dev/null 2>&1 || say "fzf not found — 'wh list' needs it (sudo pacman -S fzf)"
+command -v fzf   >/dev/null 2>&1 || say "fzf not found — 'fl list' needs it (sudo pacman -S fzf)"
 command -v foot  >/dev/null 2>&1 || say "foot not found — bar widget spawn-open needs it"
 
 # herdr must resolve to the fork that ships the JSON control stream.
 HERDR_RESOLVED=$(bash -lc 'command -v herdr' 2>/dev/null || true)
 if [[ -z $HERDR_RESOLVED ]]; then
-  fail "herdr not found on PATH. wh needs the rootshell herdr fork
+  fail "herdr not found on PATH. fl needs the rootshell herdr fork
   (upstream herdr 0.9.x has no JSON control stream). Install the fork so
   its bin/ dir is first on your PATH — see README, 'Dependencies'."
 fi
 say "herdr: $HERDR_RESOLVED"
 
 # control-stream probe: the first line on stdout must announce control_opened.
-PROBE=$(timeout 5 bash -lc 'HERDR_CONTROL_CLIENT=wh/install HERDR_CONTROL_PROTOCOL=3 herdr control </dev/null 2>/dev/null | head -1' || true)
+PROBE=$(timeout 5 bash -lc 'HERDR_CONTROL_CLIENT=fl/install HERDR_CONTROL_PROTOCOL=3 herdr control </dev/null 2>/dev/null | head -1' || true)
 if [[ $PROBE != *control_opened* ]]; then
   fail "this herdr binary does not expose the JSON control stream.
-  wh requires the rootshell fork build; upstream 0.9.x fails here. If you have
+  fl requires the rootshell fork build; upstream 0.9.x fails here. If you have
   both binaries, put the fork's bin dir FIRST on PATH (it wins via ~/.bashrc)."
 fi
-say "control stream: ok (protocol 3, wh client accepted)"
+say "control stream: ok (protocol 3, fl client accepted)"
 
 SERVER=$(env -u HERDR_ENV -u TERM_PROGRAM "$HERDR_RESOLVED" status 2>/dev/null | head -c 200 || true)
 if [[ -z $SERVER ]]; then
@@ -73,13 +73,13 @@ fi
 
 # ---------------------------------------------------------------- install
 mkdir -p "$LIB_DIR" "$BIN_DIR"
-cp "$REPO_DIR/wh/wh" "$REPO_DIR/wh/wh_client.py" "$LIB_DIR/"
-cat > "$BIN_DIR/wh" <<SHIM
+cp "$REPO_DIR/fl/fl" "$REPO_DIR/fl/fl_client.py" "$LIB_DIR/"
+cat > "$BIN_DIR/fl" <<SHIM
 #!/usr/bin/env bash
-exec python3 "\$HOME/.local/lib/winherd/wh" "\$@"
+exec python3 "\$HOME/.local/lib/flock/fl" "\$@"
 SHIM
-chmod +x "$BIN_DIR/wh" "$LIB_DIR/wh"
-say "installed: $BIN_DIR/wh -> $LIB_DIR/wh"
+chmod +x "$BIN_DIR/fl" "$LIB_DIR/fl"
+say "installed: $BIN_DIR/fl -> $LIB_DIR/fl"
 
 case ":$PATH:" in
   *":$BIN_DIR:"*) ;;
@@ -88,23 +88,23 @@ esac
 
 # ---------------------------------------------------------------- widget
 if [[ -d "$REPO_DIR" && -f "$REPO_DIR/manifest.json" ]]; then
-  if [[ -d "$HOME/.config/omarchy/plugins/winherd" ]]; then
-    say "bar widget: already installed at ~/.config/omarchy/plugins/winherd (update with: omarchy plugin update winherd — or rerun this from a fresh clone)"
+  if [[ -d "$HOME/.config/omarchy/plugins/flock" ]]; then
+    say "bar widget: already installed at ~/.config/omarchy/plugins/flock (update with: omarchy plugin update flock — or rerun this from a fresh clone)"
   elif command -v omarchy >/dev/null 2>&1 && interactive; then
     if gum confirm "Install the bar widget as an omarchy plugin now?" ; then
-      # the widget loads wh/ out of the plugin dir it lives in, so this repo
+      # the widget loads fl/ out of the plugin dir it lives in, so this repo
       # IS the plugin — install it in place
       mkdir -p "$HOME/.config/omarchy/plugins"
-      cp -a "$REPO_DIR/." "$HOME/.config/omarchy/plugins/winherd/"
+      cp -a "$REPO_DIR/." "$HOME/.config/omarchy/plugins/flock/"
       omarchy-shell shell rescanPlugins >/dev/null 2>&1 || true
-      say "bar widget: installed. enable it with: omarchy plugin enable winherd --section right"
+      say "bar widget: installed. enable it with: omarchy plugin enable flock --section right"
       say "(or pick it in the bar config after a shell restart)"
     else
       say "bar widget: left uninstalled. repo stays at $REPO_DIR"
     fi
   else
     say "bar widget: install later with:
-      omarchy plugin add https://github.com/noor-latif/winherd --enable
+      omarchy plugin add https://github.com/noor-latif/flock --enable
    (repo root is the plugin: manifest.json must stay at the top)"
   fi
 fi
@@ -114,7 +114,7 @@ if [[ -f $HERDR_CONFIG ]] && grep -q "sidebar_start_collapsed" "$HERDR_CONFIG" 2
   skip "sidebar_start_collapsed already set in $HERDR_CONFIG"
 elif [[ -f $HERDR_CONFIG ]] && interactive && command -v gum >/dev/null 2>&1; then
   if gum confirm "Set sidebar_start_collapsed = true in the herdr config?" ; then
-    printf '\n# pane-per-window (wh) makes the sidebar dead weight\nsidebar_start_collapsed = true\n' >> "$HERDR_CONFIG" \
+    printf '\n# pane-per-window (fl) makes the sidebar dead weight\nsidebar_start_collapsed = true\n' >> "$HERDR_CONFIG" \
       && "$HERDR_RESOLVED" server reload-config >/dev/null 2>&1 \
       && say "herdr config: sidebar starts collapsed; applied via reload-config"
   fi
@@ -122,4 +122,4 @@ else
   say "optional: add 'sidebar_start_collapsed = true' under [ui] in $HERDR_CONFIG, then run: herdr server reload-config"
 fi
 
-say "done. try it: open a plain foot window (Win+Enter) and run 'wh'"
+say "done. try it: open a plain foot window (Win+Enter) and run 'fl'"

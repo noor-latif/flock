@@ -6,20 +6,20 @@ import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
-// wh — herdr agents on the bar.
+// fl — herdr agents on the bar.
 //
 // Replaces the herdr sidebar with a bar slot in the standard omarchy icon
 // footprint: ONE state-colored glyph (blocked alert · working active ·
 // done check; dimmed when nothing is active), never any counts — those
 // live in the hover tooltip and in the panel, which lists every agent
 // grouped by workspace. A click on a row focuses the window viewing that
-// pane, spawning one (foot + `wh <pane_id>`) when no window has it.
+// pane, spawning one (foot + `fl <pane_id>`) when no window has it.
 // Claims stay where the user put them: the bar never changes geometry,
 // it only moves focus.
 Panel {
   id: root
-  moduleName: "winherd"
-  ipcTarget: "winherd"
+  moduleName: "flock"
+  ipcTarget: "flock"
   manageIpc: false
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
@@ -75,7 +75,7 @@ Panel {
     if (c.done > 0) parts.push(c.done + " done")
     if (c.idle > 0) parts.push(c.idle + " idle")
     if (c.unknown > 0) parts.push(c.unknown + " unknown")
-    return "winherd — " + (parts.length ? parts.join(" · ") : "none")
+    return "flock — " + (parts.length ? parts.join(" · ") : "none")
   }
 
   // Waiting-on-you: the badge's number. Blocked or done and not yet
@@ -105,7 +105,7 @@ Panel {
     }
     if (Object.keys(keep).length !== Object.keys(root.acked).length) {
       root.acked = keep
-      console.log("winherd: acks pruned ->", JSON.stringify(keep))
+      console.log("flock: acks pruned ->", JSON.stringify(keep))
       ackSaveTimer.restart()
     } else {
       root.acked = keep
@@ -132,7 +132,7 @@ Panel {
     var stateHome = Quickshell.env("XDG_STATE_HOME")
     if (!stateHome)
       stateHome = Quickshell.env("HOME") + "/.local/state"
-    return stateHome + "/winherd/acks.json"
+    return stateHome + "/flock/acks.json"
   }
 
   Process {
@@ -148,11 +148,11 @@ Panel {
             for (var k in doc.acked)
               if (doc.acked[k] === true)
                 clean[k] = true
-            console.log("winherd: acks loaded:", JSON.stringify(clean))
+            console.log("flock: acks loaded:", JSON.stringify(clean))
             root.acked = clean
             root.dataRev++
           } else {
-            console.log("winherd: acks file empty/unshaped")
+            console.log("flock: acks file empty/unshaped")
           }
         } catch (e) { /* no file yet or junk: acks stay empty */ }
       }
@@ -166,7 +166,7 @@ Panel {
   function saveAcks() {
     var dir = root.acksPath.substring(0, root.acksPath.lastIndexOf("/"))
     var payload = JSON.stringify(root.acked)
-    console.log("winherd: saving acks to", root.acksPath, payload)
+    console.log("flock: saving acks to", root.acksPath, payload)
     ackSaveProc.command = ["bash", "-lc",
                            "mkdir -p \"$1\" && printf '%s' \"$2\" > \"$1/acks.json\"",
                            "sh", dir, payload]
@@ -251,13 +251,13 @@ Panel {
     }
   }
 
-  // The launcher (`wh`) resolves through the user's login PATH; the bar's
+  // The launcher (`fl`) resolves through the user's login PATH; the bar's
   // own env may be the compositor's minimal set, so resolve once and prefer
   // the absolute fallback if `command -v` finds nothing.
   Process {
     id: whProbe
     command: ["bash", "-lc",
-              "command -v wh || echo \"$HOME/.config/omarchy/plugins/winherd/wh/wh\""]
+              "command -v fl || echo \"$HOME/.config/omarchy/plugins/flock/fl/fl\""]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
@@ -306,13 +306,13 @@ Panel {
       focusProc.command = ["hyprctl", "dispatch",
                            'hl.dsp.focus({ window = "address:' + address + '" })']
     } else {
-      var wh = root.whBin || "wh"
+      var fl = root.whBin || "fl"
       // --force: the row promises a window on this pane, and the fifo guard
-      // inside wh would otherwise close the spawned window before the user
+      // inside fl would otherwise close the spawned window before the user
       // can read its hint.
       focusProc.command = ["hyprctl", "dispatch",
-                           'hl.dsp.exec_cmd("foot -T \'wh pane ' + paneId +
-                           "\' -e " + wh + " " + paneId + ' --force")']
+                           'hl.dsp.exec_cmd("foot -T \'fl pane ' + paneId +
+                           "\' -e " + fl + " " + paneId + ' --force")']
     }
     // Focus == clear: being taken to the agent IS the acknowledgment, for
     // both the focus branch and the fresh-window spawn branch.
@@ -560,7 +560,7 @@ Panel {
             visible: root.agents.length === 0
             width: parent.width
             textFormat: Text.PlainText
-            text: "No agents in this session. Open a pane with wh and run one."
+            text: "No agents in this session. Open a pane with fl and run one."
             color: root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.body

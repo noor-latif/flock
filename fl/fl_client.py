@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""wh_client.py — per-pane pass-through terminal client for the herdr fork.
+"""fl_client.py — per-pane pass-through terminal client for the herdr fork.
 
 Child process of a plain `foot` window; stdout/stdin is the window pty.
 Speaks the fork's JSON control stream via the `herdr control` bridge and
@@ -13,7 +13,7 @@ attaches ONE pane:
 Ground truth lives in docs/architecture-notes.md. Claim discipline follows
 rootshell's own client (they fixed the tmux -CC stick-size bug class in
 kitknox/rootshell#278): claims only on activation edges (attach on an unowned
-tab, hydr focus of our window, explicit `wh take`), everything else
+tab, hydr focus of our window, explicit `fl take`), everything else
 claim:false, claims consumed on send, takeover never automatic, and every
 exit path detaches and closes the bridge.
 """
@@ -37,7 +37,7 @@ import time
 import queue as q_mod
 
 VERSION = "0.1.0"
-CLIENT_ID = f"wh/{VERSION}"
+CLIENT_ID = f"fl/{VERSION}"
 HISTORY_LIMIT = 1_048_576
 REQUEST_TIMEOUT = 15.0
 PING_INTERVAL = 30.0
@@ -444,7 +444,7 @@ class Client:
 
     def _fifo_path(self):
         rtd = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
-        d = os.path.join(rtd, "wh")
+        d = os.path.join(rtd, "fl")
         try:
             os.makedirs(d, exist_ok=True)
         except OSError:
@@ -473,7 +473,7 @@ class Client:
 
     def set_title(self):
         label = self.ws_label or "default"
-        bits = [f"wh:{label}"]
+        bits = [f"fl:{label}"]
         if self.tab_label:
             bits.append(self.tab_label)
         extra = self.title_extra()
@@ -723,7 +723,7 @@ class Client:
         reason = obj.get("reason") or "closed"
         if reason == "takeover":
             self.park("pane taken over by another client (likely rootshell on "
-                      "your phone). This window is parked; 'wh take' in a "
+                      "your phone). This window is parked; 'fl take' in a "
                       "fresh window would reclaim it.")
         else:
             self.schedule_reconnect()
@@ -739,8 +739,8 @@ class Client:
             pane = self.fetch_pane()
         if pane is None and self.pane_id:
             self.park(f"pane {self.pane_id} not found (it may have been "
-                      "closed). Run wh in its workspace again, or pick "
-                      "another with 'wh list'.")
+                      "closed). Run fl in its workspace again, or pick "
+                      "another with 'fl list'.")
             return
         if pane is not None:
             self.terminal_id = pane.get("terminal_id") or self.terminal_id
@@ -798,15 +798,15 @@ class Client:
             msg = str(e)
             if "terminal_attached" in msg or "already" in msg:
                 self.park("another client owns this pane right now "
-                          "(rootshell on your phone, or another wh window). "
-                          "'wh take' in a fresh window would claim it.")
+                          "(rootshell on your phone, or another fl window). "
+                          "'fl take' in a fresh window would claim it.")
             elif "not_found" in msg and self.pane_id:
                 if not allow_refresh:
                     # this was already a re-resolved fresh id and it still
                     # does not exist: the pane is gone for good
-                    self.park(f"pane {self.pane_id} closed — run wh in its "
+                    self.park(f"pane {self.pane_id} closed — run fl in its "
                               "workspace again, or pick another with "
-                              "'wh list'.")
+                              "'fl list'.")
                 else:
                     # the pane record is fresher than the bridge snapshot;
                     # the terminal may have been reaped and reissued — one
@@ -817,9 +817,9 @@ class Client:
                         self.terminal_id = fresh["terminal_id"]
                         self._attach_with(self.terminal_id, allow_refresh=False)
                     else:
-                        self.park(f"pane {self.pane_id} closed — run wh in "
+                        self.park(f"pane {self.pane_id} closed — run fl in "
                                   "its workspace again, or pick another "
-                                  "with 'wh list'.")
+                                  "with 'fl list'.")
             else:
                 self.log(f"attach: {msg}")
                 self.schedule_reconnect()
@@ -906,7 +906,7 @@ class Client:
             sock.connect(path)
         except OSError:
             return
-        prefix = f"wh:{self.ws_label}"
+        prefix = f"fl:{self.ws_label}"
         buf = b""
         while not self.stop.is_set():
             try:
@@ -1008,7 +1008,7 @@ class Client:
     def park(self, msg):
         self.log(f"parked: {msg}")
         self.raw(b"\x1b[?25h")
-        self.raw(f"\r\n wh parked: {msg}\r\n".encode())
+        self.raw(f"\r\n fl parked: {msg}\r\n".encode())
         self.idle_death = None
         self.stop.set()
         if self.raw_mode_state:
@@ -1018,7 +1018,7 @@ class Client:
                 pass
 
     def log(self, msg):
-        sys.stderr.write(f"[wh {time.strftime('%H:%M:%S')}] {msg}\n")
+        sys.stderr.write(f"[fl {time.strftime('%H:%M:%S')}] {msg}\n")
         sys.stderr.flush()
 
     def cleanup(self):
@@ -1066,7 +1066,7 @@ def main():
     ap.add_argument("--session", default=None)
     ns = ap.parse_args()
     if not ns.pane and not ns.terminal:
-        print("wh_client: need --pane or --terminal", file=sys.stderr)
+        print("fl_client: need --pane or --terminal", file=sys.stderr)
         sys.exit(2)
     c = Client(ns.pane, ns.terminal, ns.workspace_label, ns.tab_label, ns.session)
     signal.signal(signal.SIGWINCH, c.on_sigwinch)
