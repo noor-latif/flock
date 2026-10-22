@@ -7,6 +7,12 @@ deleted (git history keeps them), not annotated.
 
 **OPEN grills blocking work:** none.
 
+**URGENT (2026-10-22):** the fork is off PATH; `herdr` is stock 0.9.5, which has no
+control stream. Until PR-2 lands, opening a NEW `fl` window fails (the live
+server is still the fork process, pid from `ps`, until restarted). The bar badge
+and `fl status` still work. Do not restart the herdr server before PR-2, or the
+phone's fork features go with it.
+
 Reviewer at milestones: `opencode run -m surplus/deepseek-v4.1-flash`, run in a
 herdr pane in workspace `flrev`, output teed to /tmp/flock-review/.
 Research ground truth (file:line-cited) lives in `/home/noor/repos/flock-research/`
@@ -61,7 +67,8 @@ in fl_client.py (~800 lines: bridge, snapshot/output pump, geometry claims,
 query authority, fifo claim) is deleted, not patched. A phone takeover evicts
 the attach and the window dies with it: no park screen, no banner, no reclaim
 verb. Re-attach = popup row or `fl <pane>`. flock docs and install.sh drop the
-fork entirely.
+fork entirely. The fork binary is retired from PATH (files kept in
+~/.local/opt/herdr-rootshell).
 
 - ☐ M0.1 Cutover, three PRs, widget first. Attach via
   `herdr terminal attach <terminal_id>` (id from `herdr pane list`), NOT
@@ -160,8 +167,11 @@ cannot run it).
   running fork server fine. Lifecycle event subscriptions exist since 0.9.0.
 - Stock herdr 0.9.5 (official release binary, sha256-verified) overwrote
   pacman's `/usr/bin/herdr` (omarchy repo only has 0.9.1; `herdr` is in
-  `IgnorePkg` so pacman will not revert it; update by installing the GitHub release binary).
-  Copy also at `~/.local/opt/herdr-stock/bin/herdr`. tests/pty_attach.py passes
+  `IgnorePkg` so pacman will not revert it). `/usr/bin/herdr` is a SYMLINK to
+  `~/.local/opt/herdr-stock/bin/herdr`, so `herdr update` runs as the user and
+  can replace the file (updater renames inside the real file's directory).
+  Plain `herdr update` stops running servers that need a restart (prompts
+  first); use `herdr update --handoff` to migrate a live server in place. tests/pty_attach.py passes
   13/13 with 0.9.5 as client+server and as client against the fork server.
 - No herdr API reports which client owns a terminal attach.
 - The fork source clone `~/repos/rootshell-herdr-fork` is 0.9.5-preview based,

@@ -5,6 +5,10 @@ PANE, surfaced as an omarchy bar badge + popup. This repo IS the omarchy
 plugin (manifest.json at root) and ships the `fl` CLI. Start of any session:
 read ROADMAP.md (the tracked plan), then `git log --oneline -5`.
 
+STATE: the fork is off PATH; `herdr` is stock 0.9.5 (see ROADMAP URGENT note).
+New `fl` windows fail until the PR-2 cutover; the fork-quirk notes below describe
+the still-running fork server.
+
 ## Map
 
 - `BarWidget.qml` — bar badge + panel (popup). The only QML.
