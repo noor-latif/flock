@@ -4,10 +4,14 @@ Status markers: ☐ todo · ◐ in progress · ☑ done. Update them here, not i
 Decisions locked in grilling are recorded in the decision log at the bottom;
 anything marked OPEN needs a grilling round before implementation.
 
-**OPEN grills blocking work:** (1) geometry claim-mode (Phase 5.1b — after a
-live takeover probe); (2) stale-state budget per host class (Phase 6 / M0.3).
-External reviewer: `opencode run -m opencode/deepseek-v4.1-flash-free` reviews
-each milestone (M0 done → /tmp/flock-review/m0-review.md).
+**OPEN grills blocking work:** stale-state budget per host class (M0.3).
+RESOLVED 2026-10-22: claim-mode 5.1b — mooted by the fork-free cutover
+(Phase 5 decision); displaced UX = "herdr handles it" (attach evicted,
+window dies, no UX).
+Reviewers at milestones: `opencode run -m opencode/deepseek-v4.1-flash-free`
+(M0 done → /tmp/flock-review/m0-review.md) and
+`opencode/minimax-m3.1-flash-free` (from next milestone), run inside a herdr
+pane in workspace `flrev`, output teed to /tmp/flock-review/.
 Research ground truth for rounds 5-7 lives in `/home/noor/repos/flock-research/`
 (`rootshell.md`, `heeler.md`, `fork-delta.md`, `heeler-host-helper.md`,
 `herdr-architecture-verdict.md`) — file:line-cited; re-read before implementing
@@ -75,67 +79,56 @@ any item below that says "per research".
   `pane.output_matched`/`scroll_changed` subscriptions as cheap activity
   signals if needed (fork-verified, research `fork-delta.md` §1g).
 
-## Phase 5 — reclaim + window bugs (amended by M0 review)
+## Phase 5 — fork-free cutover + window fixes (decided 2026-10-22)
 
-The M0 review (`/tmp/flock-review/m0-review.md`, deepseek-v4.1-flash, verified
-spot-checks) corrected two committed premises: protocol-3 tab followers are
-NOT evicted by a second follower (`EvictScope::TabFollowerTakeover` evicts
-only terminal-geometry attaches / protocol ≤1, fork `control_stream.rs:36-53`)
-— so the takeover evict on the desktop must come from a direct terminal
-attach (`--takeover`), and the claim-mode question needs a live probe
-(`control.list` during a real takeover) before any design is locked.
-Also "pure follower (no stored size)" and "phone-off restores desktop
-geometry" are mutually exclusive: `tab.set_geometry{claim:false}` is
-documented as stored-only (terminal.rs:180-183), and restore works only via
-stored sizes (successor rule `control_stream.rs:426-461`), but a stored size
-claims the tab on next keystroke (`:1495-1533`). OPEN 5.1b grill is exactly
-one probe question: **does phone-off restore desktop geometry WITHOUT a
-desktop keystroke — and if it needs one, is keystroke-claims acceptable?**
-Answer decides follower-vs-owner; nothing else in the fork needs more
-reading.
+**VERDICT (live probe + control.list, 658 samples):** the phone's takeover
+was a direct `--takeover` attach that evicted fl's control-stream attach
+(16:58:31 park). Server-side layout NEVER mirrored the phone (wG:t2 stayed
+130x58 through the whole phone session) — "smallest device wins" is rendered
+inside rootshell's client, not by the shared layout. The parked fl bridge
+leaked (conn alive with 0 attaches 0 tabs for minutes, still answering
+`pane_is_attached`, stale "geometry owned elsewhere" title). Meanwhile
+the geometry claim-mode debate (5.1b follower-vs-owner) is MOOT under the
+cutover below — no control-stream viewer, no claims, no succession.
 
-- ☐ M0.1 Fix-before-daemonise (one PR, mechanical parts):
-  (a) acks loader/save mismatch — saveAcks writes a flat map, ackLoad
-  requires `doc.acked`; on-disk file is flat ⇒ acks never load, Phase 1.3's
-  "live-verified" was false. Fix round-trip.
-  (b) widget pane matcher: `indexOf("pane "+id)` matches `w1:p1` inside
-  `w1:p10` and ignores window class — use `endsWith` + class check (fl/fl
-  already does).
-  (c) park() leaks bridge/fifo/title and the parked client still answers
-  `pane_is_attached` true — cleanup() on park, and the parked message must
-  say `fl <pane> --force` (never `fl take`).
-  (d) first-snapshot race: assign attach_id before pump processes the
-  pushed snapshot (route by pending-attach queue, not by id compare).
-  (e) ping timeout ("ping failed") never triggers reconnect — classify
-  errors properly; single-flight reconnect (dedupe scheduled tasks).
-  (f) monotonic request ids (fixed ids like "rt"/"att" collide across
-  concurrent refreshes; wrong-reply delivery).
-  (g) focus fix: `hl.dsp.focus({ window = "title:<escaped>" })` (widget's
-  proven form), verify exit status.
-  (h) `resolve_tab_id` fallback to snapshot pane record; claim-mode decision
-  (5.1b) after the live probe — needs a grill, NOT in this PR.
-- ☐ M0.2 One reader: extract widget's read path into `flockd --once` /
-  `fl status --snapshot`; delete QML's shell pipeline. One parser, one schema.
-- ☐ M0.3 Daemon read-only single-host (plain API socket, NOT control stream —
-  `agent.wait`/`agent.prompt` are refused on control streams;
-  `control.list` works on any connection). Widget consumes state.sock,
-  falls back to the same `--once` implementation, renders degraded.
-  Ack ledger stays widget-local until M0.5.
+**DECISION (grill 2026-10-22): fl goes fork-free, Heeler dialect.**
+- fl window = foot running `herdr agent attach <pane>` PTY (stock herdr
+  0.9.0+ API). The entire control-stream machinery in fl_client.py
+  (~800 lines: bridge, snapshot/output/gap pump, geometry claims,
+  query authority, fifo claim) is DELETED, not patched — with it die
+  M0.1(c)-(h) and review findings 3-5, 10-13, 26-28.
+- Displaced UX: NONE — herdr handles it. Phone takes over → the PTY attach
+  is evicted → attach process exits → window closes/dies with it. No park
+  screen, no banner, no reclaim verb. Re-attach = popup row / `fl <pane>`.
+- Fork binary stays on the laptop for rootshell/phone only; flock's docs
+  and install.sh drop it entirely (fork-independent install story).
+
+- ☐ M0.1-forkfree Cutover PR:
+  (a) fl/fl: replace client exec with `herdr agent attach <pane>` (keep
+  resolve-or-create workspace flow, `fl list`, `fl status`; drop --force —
+  no longer meaningful; attach failure = honest error text).
+  (b) window title: keep `pane <pane_id>` suffix convention (widget matcher
+  depends on it) — the PTY's foot title must still end with it.
+  (c) delete fl_client.py control-stream paths; keep only what `fl list`/
+  `fl new` need (CLI JSON calls — those are stock APIs).
+  (d) `fl take` verb deleted (fifo gone with the client).
+  (e) BarWidget fixes independent of the cutover: acks load/save round-trip
+  (flat map on disk vs doc.acked loader), pane matcher endsWith + class
+  check, ack-after-action-success (M0.4 principle applied now where cheap).
+  (f) roadmap/docs: architecture-notes.md marked historical; README install
+  story = stock herdr only.
+- ☐ M0.2 One reader (unchanged): `flockd --once` / `fl status --snapshot`;
+  delete QML shell pipeline.
+- ☐ M0.3 Daemon read-only single-host — now trivially stock-API: snapshot +
+  events.subscribe (0.9.0+), no control.* anywhere in flock.
   OPEN grill: stale-state budget — hide degraded host rows vs render with
   last-good timestamp; reconcile interval per host class (local 2-5 s,
   ssh 10-30 s). Blocks M0.3's degraded-render work.
-- ☐ M0.4 Actions split by owner: `host.*` (new_agent/prompt/close_pane/
-  worktree) via flockd; `surface.focus_window` stays local; ack conditional
-  on action result (today widget acks before focus succeeds).
-- ☐ M0.5 Ack ownership → flockd (single writer; prune only on authoritative
-  host snapshots — current prune drops acks during degraded polls).
-- ☐ M0.6 Multi-host: host-qualified ids everywhere (acks, titles, fifos,
-  actions — bare `w1:p1` collides across hosts), cross-host ordering key
-  (`state_change_seq` is per-host; add host-local seq + receive time),
-  gap policy extended with boot_id + pane-set changes.
-- ☐ M0.7 Notifier plugin + fl TUI + macOS adapter. RULE: control plane via
-  flockd only — terminal attach/output stays direct host↔surface, flockd
-  never proxies `terminal.*`.
+- ☐ M0.4-M0.7 unchanged (actions split, ack ownership, multi-host,
+  notifier + adapters).
+
+Probe artifacts kept for reference: /tmp/flock-review/{probe.py,
+probe-live.log} (geometry never mirrored; zombie bridge evidence).
 
 ## Phase 6 — flockd core (superseded ordering: see Phase 5 M0.2-M0.7)
 
