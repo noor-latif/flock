@@ -30,6 +30,23 @@ Plugin QML does NOT hot-reload: the shell runs with QS_DISABLE_FILE_WATCHER=1,
 and "Local plugin changed, reloading" lines it logs are stale — restart to be
 sure. Skip reload lines only when a NEW startup block follows them.
 
+## Anti-bloat (the repo is ~2k lines of code; keep it that way)
+
+- Deletion over addition. A fix that removes code beats one that adds a layer.
+  The Phase 5 cutover exists to delete ~800 lines — do not patch around them.
+- No new files for planning, notes, reviews, or handoffs. Plans live in
+  ROADMAP.md only, capped at ~150 lines; delete finished or superseded items
+  instead of annotating them ("SUPERSEDED", "was wrong", strikethroughs).
+- No speculative code or phases. If it is not in the next milestone, it is one
+  line under "Deferred" in ROADMAP.md, not a design.
+- No new dependencies, abstractions, config knobs, or flags without a request.
+  One logical change per commit; a commit that only reshuffles docs needs a
+  reason beyond "folded review round".
+- Review output (/tmp/flock-review/, opencode runs) is scratch: fold the
+  decision into ROADMAP.md in a line or two, never paste the findings.
+- Docs describe what is true now. When code is deleted, delete or fix the doc
+  that described it in the same commit.
+
 ## Hard limits
 
 - The user's machine IS the runtime. Never `herdr server stop` (use `herdr
@@ -63,9 +80,11 @@ sure. Skip reload lines only when a NEW startup block follows them.
 - `first_pane` must use plain loops (a dict-comp once referenced an
   out-of-scope var → NameError; lesson: no scoping tricks in this repo).
 - `herdr workspace close <id>` (positional).
-- Window titles must END with `pane <pane_id>` — the widget's focus matcher
-  scans hyprctl clients for exactly that needle; `fl pane <id>` is the
-  pre-attach foot title and survives the same scan.
+- Until the PR-2 cutover: window titles must END with `pane <pane_id>` — the
+  widget's focus matcher scans hyprctl clients for exactly that needle. PR-2
+  replaces this with foot app-id `flock-<pane_id>` (no titles; ROADMAP M0.1).
+- Safe herdr checks: `python3 -I tests/pty_attach.py` runs against a sandboxed
+  server. Use it, not the live session, to test attach behaviour.
 
 ## Working with the user
 

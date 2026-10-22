@@ -1,375 +1,172 @@
 # flock — tracked plan
 
 Status markers: ☐ todo · ◐ in progress · ☑ done. Update them here, not in chat.
-Decisions locked in grilling are recorded in the decision log at the bottom;
-anything marked OPEN needs a grilling round before implementation.
+Anything marked OPEN needs a grilling round before implementation.
+Size cap: this file stays under ~150 lines. Finished or superseded items are
+deleted (git history keeps them), not annotated.
 
-**OPEN grills blocking work:** none. RESOLVED 2026-10-22: claim-mode 5.1b —
-mooted by the fork-free cutover (Phase 5); displaced UX = "herdr handles it"
-(attach evicted, window dies, no UX); stale-state budget = keep degraded
-rows visible with status + last-good age (arena pattern), reconcile local
-2-5 s / ssh 10-30 s (M0.3; decision-log Review round).
-Reviewers at milestones: `opencode run -m surplus/deepseek-v4.1-flash`,
-run inside a herdr pane in workspace `flrev`, output teed to
-/tmp/flock-review/. (History: opencode free tier exhausted 2026-10-22 —
-ALL `-free` models quota-blocked, likely leaked zombie runs + M0 review;
-minimax-m3.1 deprecated same day before use. Surplus key is the fallback
-route.) M0 review → m0-review.md, M0.1 plan review → m01-review.md.
-Research ground truth for rounds 5-7 lives in `/home/noor/repos/flock-research/`
+**OPEN grills blocking work:** none.
+
+Reviewer at milestones: `opencode run -m surplus/deepseek-v4.1-flash`, run in a
+herdr pane in workspace `flrev`, output teed to /tmp/flock-review/.
+Research ground truth (file:line-cited) lives in `/home/noor/repos/flock-research/`
 (`rootshell.md`, `heeler.md`, `fork-delta.md`, `heeler-host-helper.md`,
-`herdr-architecture-verdict.md`) — file:line-cited; re-read before implementing
-any item below that says "per research".
+`herdr-architecture-verdict.md`); re-read before any item that says "per research".
 
-## Phase 1 — chicken fix + quick wins (friends blockers) — DONE
+## Done
 
-- ☑ 1. Ghost-terminal hardening — `apply_topology` re-resolves against the CLI
-  before first-connect attach; park on vanish; re-resolve once on `not_found`.
-- ☑ 2. Panel auto-dismiss — row click focuses/spawns AND closes the popup.
-- ☑ 3. Persisted dismissals — acks in `${XDG_STATE_HOME:-~/.local/state}/flock/acks.json`,
-  debounced write, pruned to still-done agents.
-  ⚠ M0 review found the load path broken (save/load format mismatch) —
-  restart-load silently drops every ack; fix lands in M0.1(a). The earlier
-  "LIVE VERIFIED" claim covered only the write side.
-- ☑ 4. Friends-first README pass — fork as dependency #0, CLI vs widget split,
-  dismissal semantics, troubleshooting rows.
-- ☑ 5. Where-am-I — DISSOLVED (opencode's own hidden panel, not a flock surface).
-
-## Phase 2 — publish — DONE
-
-- ☑ GitHub public `noor-latif/flock`, main + v0.1.0; clean-clone friends path
-  verified; real URL embedded in README + install.sh.
+- Phase 1: ghost-terminal hardening, panel auto-dismiss, persisted acks
+  (load path broken, fixed in PR-1 e1), friends-first README.
+- Phase 2: public `noor-latif/flock`, v0.1.0.
 
 ## Phase 3 — keyboard + filter
 
-- ☐ 1. Arrow keys move the row cursor, enter activates; CursorSurface
-  keyboard-cursor contract, mirroring the tailscale panel machinery.
-- ☐ 2. Type-to-filter, fzf-style FUZZY (grilled decision): subsequence match
-  ranked by score — contiguous runs and word-boundary hits win.
-- ☐ 3. Per-agent context size in rows. RESEARCH CAVEAT: no `context_*` field
-  exists in `AgentInfo`/`PaneInfo` in any repo — live-probe which `tokens` key
-  carries it before designing the format (grill round 4 pending on format).
+- ☐ 1. Arrow keys move the row cursor, enter activates (CursorSurface
+  keyboard-cursor contract, mirroring the tailscale panel).
+- ☐ 2. Type-to-filter, fzf-style fuzzy: subsequence match, ranked by score
+  (contiguous runs and word-boundary hits win).
+- ☐ 3. [needs grill] Per-agent context size in rows. Probed 2026-10-22: no
+  context field in agent/pane/workspace JSON, and no `tokens` key at all in live
+  output. `tokens` is a metadata map that only appears when a reporter writes it
+  (`pane report-metadata`); nothing on this machine reports context. Needs a
+  reporter per agent, or drop the item.
 
 ## Phase 3b — popup surfaces
 
-- ☐ 0. Sidebar parity (user request 2026-10-22, herdr TUI sidebar screenshot):
-  popup shows (a) spaces tree with per-workspace state dot, branch +
-  `↑N` git badge, worktree provenance rows; (b) agents grouped by
-  workspace below (the "agents / grouped" list); (c) `+ new tab` row
-  per workspace; (d) rename for tabs/workspaces (long-press/right-click
-  → `tab.rename`/`workspace.rename`). DATA GAP (OPEN decision): socket
-  `WorkspaceInfo` has NO branch/git_ahead_behind (fork
-  `api/schema/workspaces.rs:62-76`) — the TUI's badge rides the client
-  protocol (`server/client_shell.rs:87-89`, computed in
-  `workspace/git/status.rs:193-341`). Pick: fork patch vs flockd git
-  spawn vs tokens-map probe. Also probe whether `tokens` map carries
-  context-size here (Phase 3.3 shares the probe).
-- ☐ 1. Agentless panes: per-workspace disclosure section, collapsed by default;
-  rows behave like agent rows (click = focus/spawn).
+- ☐ 0. Sidebar parity with the herdr TUI: spaces tree with state dot, branch +
+  `↑N` git badge; agents grouped by workspace; `+ new tab` row; rename for
+  tabs/workspaces. OPEN data gap [needs grill]: live `workspace list` carries a
+  `worktree` object (repo root, checkout path) but no branch or ahead/behind;
+  the TUI gets those over the client protocol (fork `server/client_shell.rs`
+  git fields). Pick: flockd runs `git` itself vs fork patch. The tokens-map
+  option is dead (see Phase 3.3).
+- ☐ 1. Agentless panes: per-workspace disclosure, collapsed by default; rows
+  behave like agent rows.
 - ☐ 2. New-pane affordance for parallel agents in one cwd — folded into the
-  Phase 7 launcher (`fl new` + popup "+ new agent"); pick logic stays
-  first-pane meanwhile.
-- ☐ 3. Self-update story `fl update` — locate clone, `git pull --ff-only`,
-  re-sync deployed copies, print old→new, hint `omarchy-restart-shell` on QML
-  change; friends get `omarchy plugin update flock` for the plugin half.
+  Phase 7 launcher; pick logic stays first-pane meanwhile.
+- ☐ 3. `fl update`: locate clone, `git pull --ff-only`, re-sync deployed
+  copies, print old→new, hint `omarchy-restart-shell` on QML change.
 
-## Phase 4 — activity chronology (amended by flockd)
+## Phase 4 — activity chronology
 
-- ☐ 1. Sections (workspaces) reorder by most-recent activity, most-alive on
-  top; rows inside keep state_change-seq order.
-- ☐ 2. AMENDED: the design spike is overtaken by Phase 6 — flockd subscribes
-  per host (`events.subscribe`), so chronology derives from the event feed
-  (with per-host gap → snapshot reset) instead of poll deltas. Keep
-  `pane.output_matched`/`scroll_changed` subscriptions as cheap activity
-  signals if needed (fork-verified, research `fork-delta.md` §1g).
+- ☐ Sections reorder by most-recent activity, most-alive on top; rows inside
+  keep state_change-seq order. Derive from flockd's event feed (M0.3), not poll
+  deltas.
 
-## Phase 5 — fork-free cutover + window fixes (decided 2026-10-22)
+## Phase 5 — fork-free cutover (decided 2026-10-22)
 
-**VERDICT (live probe + control.list, 658 samples):** the phone's takeover
-was a direct `--takeover` attach that evicted fl's control-stream attach
-(16:58:31 park). Server-side layout NEVER mirrored the phone (wG:t2 stayed
-130x58 through the whole phone session) — "smallest device wins" is rendered
-inside rootshell's client, not by the shared layout. The parked fl bridge
-leaked (conn alive with 0 attaches 0 tabs for minutes, still answering
-`pane_is_attached`, stale "geometry owned elsewhere" title). Meanwhile
-the geometry claim-mode debate (5.1b follower-vs-owner) is MOOT under the
-cutover below — no control-stream viewer, no claims, no succession.
+**Decision:** fl goes fork-free. The fl window is foot running
+`herdr agent attach <pane>` (stock herdr 0.9.0+). The control-stream machinery
+in fl_client.py (~800 lines: bridge, snapshot/output pump, geometry claims,
+query authority, fifo claim) is deleted, not patched. A phone takeover evicts
+the attach and the window dies with it: no park screen, no banner, no reclaim
+verb. Re-attach = popup row or `fl <pane>`. flock docs and install.sh drop the
+fork entirely.
 
-**DECISION (grill 2026-10-22): fl goes fork-free, Heeler dialect.**
-- fl window = foot running `herdr agent attach <pane>` PTY (stock herdr
-  0.9.0+ API). The entire control-stream machinery in fl_client.py
-  (~800 lines: bridge, snapshot/output/gap pump, geometry claims,
-  query authority, fifo claim) is DELETED, not patched — with it die
-  M0.1(c)-(h) and review findings 3-5, 10-13, 26-28.
-- Displaced UX: NONE — herdr handles it. Phone takes over → the PTY attach
-  is evicted → attach process exits → window closes/dies with it. No park
-  screen, no banner, no reclaim verb. Re-attach = popup row / `fl <pane>`.
-- Fork binary stays on the laptop for rootshell/phone only; flock's docs
-  and install.sh drop it entirely (fork-independent install story).
+- ☐ M0.1 Cutover, three PRs, widget first. Attach via
+  `herdr terminal attach <terminal_id>` (id from `herdr pane list`), NOT
+  `herdr agent attach`. Verified 2026-10-22 against the running fork server
+  and stock `/usr/bin/herdr` 0.9.1: `agent attach` and `agent get` return
+  `agent_not_found` (exit 1) for shell panes. `terminal attach` on a shell pane
+  is PROVEN by `python3 -I tests/pty_attach.py` (13 checks on a sandboxed
+  server, never the live session; all pass with fork 0.9.3 and stock 0.9.1:
+  `HERDR_BIN=/usr/bin/herdr python3 -I tests/pty_attach.py`). Re-run it after
+  any herdr update and before PR-2. Constraints for PR-2:
+  1. One attach path for agent and shell panes; no plain-foot-shell fallback.
+  2. No window titles (decision: spartan look, nothing shown). Window identity
+     is the foot app-id: `foot -a flock-<pane_id> -e …`, matched on the hyprctl
+     client `class` EXACTLY (so `flock-1` never matches `flock-10`). Drop the
+     `-T` title, the OSC 2 write and the widget's title matcher. TRAP: do not
+     use `herdr terminal title set`; it retitles the user's interactive herdr
+     client (`client.window_title.set`), not the foot window.
+  3. A second attach is refused by the server (exit 1, "terminal attach
+     failed: terminal <id> already has an attached client; retry with
+     --takeover"; tested on fork 0.9.3 and stock 0.9.1). No herdr API exposes
+     the attach owner, so the pre-check is a window-system check: hyprctl
+     clients with class `flock-<pane_id>`. If found: focus it, print "window
+     already open", do not spawn.
+  4. Close semantics need a live parent: fl does not exec-replace itself. It
+     catches SIGHUP/SIGTERM. Tested: SIGHUP ends the attach client, the pane
+     survives, and the attach slot is free again. Exit codes (tested): detach
+     (Ctrl+B q) exits 0; takeover and refusal exit 1 with "taken over" /
+     "already has an attached client". Note: inside an attach Ctrl+B is the
+     detach prefix, not readline's back-char (double-tap sends a literal one).
+     On window close re-check with `herdr agent get <pane>`: ok → agent, leave
+     the pane; `agent_not_found` → shell, `herdr pane close`. Never on
+     park/error exits. Keep `read_close_config` (config.toml `[close]`,
+     FLOCK_CLOSE_SHELLS) and move it into fl/fl.
 
-- ☐ M0.1-forkfree Cutover PR (plan review verdicts folded —
-  /tmp/flock-review/m01-review.md, surplus/deepseek-v4.1-flash, 16 findings;
-  E: three PRs, widget first).
+  **PR-1 Widget fixes** (lands first, works with old fl):
+  (e1) acks save/load format mismatch (BarWidget.qml:166-174 vs 143-157).
+  (e2) window matcher: match titles ending `pane <id>` and class foot, not
+  `indexOf("pane "+id)` (`pane 1` matches `pane 10`; :296-303). Interim: PR-2
+  replaces this with the exact app-id match.
+  (e3) clear the badge only after focus/spawn succeeded (focusProc.onExited,
+  :313-323). (e4) drop `--force` from the widget's spawn command.
 
-  Background in one paragraph: today `fl` opens a window that speaks the
-  fork's control stream through `fl_client.py`. In the new world the window
-  just runs `herdr agent attach <pane>` — herdr's own viewer, same thing the
-  phone's Heeler app does. That sounds like a small swap, but the review
-  found four things herdr's attach does NOT do for us, and each one needs a
-  decision before coding:
+  **PR-2 Cutover** (atomic): fl spawns `foot -a flock-<pane_id>` and waits;
+  `terminal attach <terminal_id>` for every pane; widget matches class
+  `flock-<pane_id>`; focus-existing guard; on attach failure print the reason and wait for
+  Enter; delete fl/fl_client.py entirely (~1140 lines; fl/fl never imports it,
+  it only execs it, and has its own herdr helpers) plus fl/fl's fifo helpers
+  (`fifo_for_pane`, `pane_is_attached`, `attached_hint`); delete `fl take` and
+  the "●" marker in `fl list`; signal-gated
+  close wrapper; install.sh accepts stock herdr (drops the probe at :51-67);
+  README / AGENTS.md lose fl_client and fork references;
+  architecture-notes.md deleted or marked historical.
 
-  1. **It refuses shell panes.** `herdr agent attach` only attaches panes
-     that run an agent; a plain shell pane gives `agent_not_found` (exit 1,
-     verified live). But bare `fl` attaches the workspace's first pane,
-     which is often just a shell. So: shell panes get a plain foot window
-     with a normal shell — no attach, no close logic, herdr reaps the pane
-     itself when the window closes.
-  2. **It sets no window title.** The widget finds flock windows by the
-     title suffix `pane <id>`. The old client wrote that title; the new
-     attach never does (herdr only pushes titles to its interactive
-     clients, not attach clients — headless.rs:1493-1519). So fl must set
-     the title itself: `foot -T "fl:<ws> — pane <id>"` when spawning the
-     window, plus an escape-sequence write from the small wrapper script
-     (see 4). The title is static from then on; no live status text.
-  3. **A second attach is refused.** If a window for that pane is already
-     open, running `fl <pane>` again gets "already attached" and the new
-     window would instantly die. Today the fifo guard catches this and
-     focuses the existing window instead. Without the fifo, fl must check
-     first and print "window already open" (and focus it via hyprctl)
-     instead of spawning a doomed window.
-  4. **Close semantics need a real process to live in.** The round-3
-     decision — when the user closes the window, park agent panes but
-     close shell panes — cannot ride on exit codes, because takeover and
-     real errors both exit 1 and a clean detach exits 0. The only reliable
-     signal is: the wrapper script catches SIGHUP/SIGTERM (what a window
-     close sends). So fl does NOT exec-replace itself with the attach —
-     it stays alive as a small parent, catches those signals, and on
-     window-close re-checks the pane with `herdr agent get` (definitive;
-     `agent_status:"unknown"` from `pane list` lies for shell panes):
-     agent pane → leave it (it keeps running server-side), shell pane →
-     `herdr pane close`.
+  **PR-3 Docs** only if PR-2 gets too big; never split PR-2 itself.
+- ☐ M0.2 One reader: `flockd --once` / `fl status --snapshot`; delete the QML
+  shell pipeline.
+- ☐ M0.3 flockd read-only, single host: snapshot + `events.subscribe`, per-host
+  gap → snapshot reset. Degraded rows stay visible with status + last-good age;
+  reconcile local 2-5 s, ssh 10-30 s. Socket contract: hello/version, mode
+  0o600, rendered not-running state. flockd owns aggregate, action routing,
+  notifier fan-out; NOT surface-local focus or the terminal data plane.
+- ☐ M0.4-M0.7 actions split, ack ownership, multi-host, notifier + adapters.
+  Blocked/done only; a blocked transition while flockd is down is lost
+  (accepted; the badge is the ambient surface).
 
-  Two more review findings folded in: attach failures under
-  `foot -e` close the window so fast the error text is unreadable (hold
-  the window open on errors, wait for a keypress), and `install.sh`
-  still hard-rejects herdr builds without the control stream
-  (install.sh:51-67) — it must accept stock herdr in the same PR, or
-  friends can't install mid-cutover.
+## Phase 7 — agent launcher
 
-  **PR-1 Widget fixes** (safe to land first, works with old fl):
-  (e1) acks save/load mismatch — the widget writes one JSON shape and
-  reads another, so acks vanish on restart (BarWidget.qml:166-174 vs
-  143-157). (e2) window matcher: match titles ending with `pane <id>` and
-  check the window class is foot — today `indexOf("pane "+id)` matches
-  `pane 1` inside `pane 10` (BarWidget.qml:296-303). (e3) only clear the
-  badge after the focus/spawn actually succeeded (focusProc.onExited),
-  not before (BarWidget.qml:313-323). (e4) the widget's spawn command
-  still passes `--force`; remove it in this PR so PR-2 can delete the
-  flag without breaking the widget.
+- ☐ 1. `fl new` wizard in a cwd: PATH-probe agent detection → kind/name/args →
+  `tab.create{cwd, focus:false}` → `agent.start` with the `agent_pane_busy`
+  retry and pane-close compensation on failure (per research `heeler.md` §3).
+- ☐ 2. Popup "+ new agent" form sharing the same store logic.
+- ☐ 3. Worktree toggle in both surfaces → `worktree.create` → `agent.start` in
+  the returned root pane; `worktree.remove` compensation on failure.
 
-  **PR-2 Cutover** (atomic — title + wrapper + install.sh together):
-  (a) fl spawns foot and waits (never exec) — the wrapper in 4 needs to
-  stay alive. (a2) shell-pane fallback per 1. (a3) title per 2.
-  (a4) focus-existing guard per 3. (a5) error hold: on attach failure,
-  print the reason and wait for Enter before the window closes.
-  (b) title keeps the `pane <pane_id>` suffix last (the widget matcher
-  depends on it); the old live status segment in the title is gone.
-  (c) delete fl_client.py's control-stream machinery (~800 lines: bridge,
-  snapshot pump, geometry claims, fifos); keep only the plain CLI calls
-  that `fl list`/`fl new` use.
-  (d) `fl take` deleted; the "●" attachment marker in `fl list` goes with
-  the fifo — accepted loss until flockd replaces it.
-  (d2) close semantics per 4 (signal-gated wrapper).
-  (e2b) install.sh accepts stock herdr, drops the fork probe.
-  (f) docs: architecture-notes.md marked historical; README loses
-  `fl take`/`--force`/geometry-claim sections; AGENTS.md loses
-  fl_client references.
+## Phase 8 — remote hosts (not started; stock herdr only)
 
-  **PR-3 Docs** — only if PR-2 got too big; never split PR-2 itself.
+Decision: shared view/geometry over remote is bloat. SSH + stock herdr JSON API
++ PTY attach. First spike: does `herdr machine add <ssh-target>` fit flockd's
+consumption shape? If yes, ride it and own only aggregation; else
+`[[hosts]]` in config.toml. Then host → workspace popup sections and
+`fl pair <code>` (Heeler QR ceremony; needs real OpenSSH, Tailscale SSH alone
+cannot run it).
 
-- ☐ M0.2 One reader (unchanged): `flockd --once` / `fl status --snapshot`;
-  delete QML shell pipeline.
-- ☐ M0.3 Daemon read-only single-host — now trivially stock-API: snapshot +
-  events.subscribe (0.9.0+), no control.* anywhere in flock.
-  OPEN grill: stale-state budget — hide degraded host rows vs render with
-  last-good timestamp; reconcile interval per host class (local 2-5 s,
-  ssh 10-30 s). Blocks M0.3's degraded-render work.
-- ☐ M0.4-M0.7 unchanged (actions split, ack ownership, multi-host,
-  notifier + adapters).
+## Deferred (not committed)
 
-Probe artifacts kept for reference: /tmp/flock-review/{probe.py,
-probe-live.log} (geometry never mirrored; zombie bridge evidence).
+- Env targets for the launcher (mise / devcontainer): when a repo gets one.
+- macOS bar adapter: a dumb consumer of flockd's socket.
+- iPhone push via Heeler relay: only if laptop-offline notification is needed.
+- Fork rebase: stay pinned; do not carry our own rebase.
 
-## Phase 6 — flockd core (superseded ordering: see Phase 5 M0.2-M0.7)
+## Verified facts (probed 2026-10-22; re-probe before relying on them)
 
-Boundary (from M0 review, verdict A): flockd owns aggregate + action
-fan-out + notifier registry + degraded-state truth. It does NOT own:
-herdr's machine catalog (Phase 8 spike decides catalog owner — if
-`herdr machine add` fits, flockd aggregates over herdr supervisors
-instead of a second `[[hosts]]` transport), surface-local focus, or the
-terminal data plane. Host-qualified identity and a hello/version +
-socket mode 0o600 + not_running error shape are part of the socket
-contract (M0.3). Notifier durability: a blocked transition while flockd
-is down is lost unless a herdr hook spools it — accept-and-document for
-now (badge is the ambient surface; revisit if push wanted).
+- Two binaries: fork `~/.local/opt/herdr-rootshell/bin/herdr` (0.9.3-rootshell)
+  first on PATH, stock `/usr/bin/herdr` 0.9.1. Both have `agent attach`,
+  `terminal attach`, `--takeover`, `machine add`. The stock CLI talks to the
+  running fork server fine. Lifecycle event subscriptions exist since 0.9.0.
+- No herdr API reports which client owns a terminal attach.
+- The fork source clone `~/repos/rootshell-herdr-fork` is 0.9.5-preview based,
+  newer than the installed fork binary and stock: its error strings may differ.
 
-## Phase 7 — agent lifecycle launcher (the Heeler sheet, both surfaces)
+## Environment facts
 
-- ☐ 1. `fl new` CLI wizard in a cwd: PATH-probe agent detection (Heeler's
-  `command -v` marker trick, research `heeler.md` §3) → kind/name/args →
-  `tab.create{cwd, focus:false}` → `agent.start{kind,name,pane_id,args}` with
-  the `agent_pane_busy`/canonical-mode retry and pane-close compensation on
-  failure (exact Heeler choreography).
-- ☐ 2. Popup "+ new agent" row/form (host/workspace/agent/name/tab/args,
-  worktree toggle) sharing the same store logic as `fl new`; bare `fl` typed in
-  any terminal opens the in-terminal TUI popup (alt-screen list + keys over
-  flockd's socket — feasible: same raw-tty machinery fl_client already uses).
-- ☐ 3. Worktree sandbox: worktree toggle in both surfaces →
-  `worktree.create{workspace_id, branch?, base?, label}` → `agent.start` in the
-  returned root pane; generated `worktree/<adj>-<noun>-<nnnn>` default,
-  typeable branch; `worktree.remove` compensation on failure. Agent env/configs
-  are host-level (NOT per-checkout) — that is the whole "persisting configs"
-  story; no copy step. Env targets (mise/devcontainer) DEFERRED — see Phase 10.
-
-## Phase 8 — remote hosts (Heeler dialect; flock is fork-independent)
-
-Decision: shared view/geometry over remote is bloat — Heeler's stock-herdr
-dialect wins for remotes (research `heeler.md` §1, `heeler-host-helper.md`).
-Since the Phase 5 cutover, flock requires stock herdr only — the fork
-binary is the user's own phone/rootshell concern, not a flock dependency
-on any machine.
-
-- ☐ 1. `[[hosts]]` in config.toml: name, ssh alias, session, notify level,
-  poll override. No daemon, no plugin, nothing installed on remotes beyond
-  stock herdr + sshd (stream-local forwarding is the OpenSSH default).
-- ☐ 2. Transport per host: SSH exec → direct-streamlocal onto `herdr.sock` for
-  JSON RPC (snapshot + events.subscribe), PTY exec
-  `HERDR_SOCKET_PATH=… herdr agent attach <pane> [--takeover]` for terminals.
-  Remote attach is single-owner stock behavior — takeover prompt on collision
-  (user-initiated only). EVALUATE FIRST against `herdr machine add <ssh-target>`
-  (upstream's saved-machine catalog: SSH stdio bridge → local socket,
-  independent reconnects, `--machine` prefixing): if its per-host bridge fits
-  flockd's consumption shape, ride herdr's maintained path instead of a
-  bespoke flock transport; flockd then owns only aggregation. Decide with a
-  spike before writing transport code.
-- ☐ 3. Popup sections become host → workspace; host rows carry status +
-  measured latency (Heeler hosts-screen model); badge counts all hosts.
-- ☐ 4. QR pairing, text-mode: adopt the Heeler plugin ceremony (ALREADY
-  installed and enabled on this laptop) — `fl pair <code>` consumes the
-  `HERDR-PAIR:1:…` envelope exactly as the iPhone does: connect with the
-  Bootstrap Key, write the laptop's Device Key to stdin, pin the host
-  fingerprint. No camera needed; the host renders the code via the plugin's
-  `pair` action. Manual `[[hosts]]` entries stay the fallback. CAVEAT
-  (plugin README): Tailscale SSH alone cannot run the ceremony — it needs
-  real OpenSSH on the host (authorized_keys forced commands); plugin skips
-  `SSH-2.0-Tailscale` servers. All our hosts are Tailscale, so verify each
-  remote runs stock sshd (Tailscale subnet routing or plain tailscaled with
-  OpenSSH on :22 is fine).
-
-## Phase 9 — deferred / future (explicitly not committed)
-
-- ☐ Env targets for the launcher: mise / devcontainer (docker compose up +
-  exec). Laptop has docker 29.9 + podman 6.1 + mise, zero devcontainer.json
-  files; revisit when a repo actually gets one. User wants hands-on comfort
-  with the isolation story first.
-- ☐ macOS bar adapter: dumb consumer of flockd's socket (the port is the
-  point of the core; design note only).
-- ☐ iPhone push via Heeler's relay/hooks: only if laptop-offline notification
-  is ever required (laptop-offline means nobody is minding the badge anyway).
-- ☐ Fork rebase posture: fork is 0.9.3-based, upstream 0.9.5 with input-IME +
-  detection + perf fixes and `plugin update`; method surface unchanged. Stay
-  pinned until kitknox integrates (their pattern), do NOT carry our own rebase.
-  Revisit if a needed fix lands upstream first.
-
-## Decision log (from grilling)
-
-Rounds 1-4 (pre-publish): see git history of this file — badge/pill language,
-dismissal semantics, close semantics, focus-on-collision, `--force` flag,
-naming, chronology-by-sections, fuzzy filter.
-
-Round 5-7 (2026-10-22, rootshell/Heeler research):
-
-- **Takeover UX**: no special UX, no park screens, no exit-to-shell — fl
-  behaves like herdr's native clients: quiet auto-reconnect when a takeover
-  frees the pane. The user values herdr's native smallest-device geometry
-  mirroring; fl must not fight it or wedge (Phase 5.1).
-- **No suggested fl commands**: user-facing messages must not advertise CLI
-  incantations ("run fl take…"); the popup owns agent lifecycle. `fl take` as
-  a pane-env guard is dead (Phase 5.3).
-- **Remote dialect**: Heeler wins for remotes by NOT using the fork: SSH +
-  stock herdr JSON API + PTY attach. Shared view/geometry over remote =
-  bloat. Fork stays a local-only dependency.
-- **Heeler's "helper" demystified**: no host daemon exists — one herdr plugin
-  (one-shot hooks + QR pairing popup + 120 s self-revoking bootstrap key) and
-  a developer-hosted stateless push relay. flock adopts the plugin's pairing
-  ceremony (already installed here) and nothing else from it.
-- **Core architecture (flockd)**: adopted after verification against herdr's
-  code (verdict file): shape correct, boundary corrected — subscribe per host,
-  never poll; own only cross-host aggregate, action routing, fan-out;
-  per-host gap reset; capability-gate fork-only features; session-scoped
-  lifetime; rendered not-running state. Surfaces are dumb plugins over the
-  NDJSON socket (cordis model: services + events, no logic in surfaces).
-- **Launcher**: BOTH surfaces — `fl new` wizard and popup form — sharing one
-  store; bare `fl` in a terminal opens the in-terminal TUI popup. Heeler's
-  launch choreography (tab.create → agent.start + retry + compensation) is
-  the contract.
-- **Sandbox meaning**: "sandbox with persisting configs" = harness +
-  environment selection; the persisting part is free (herdr agent env is
-  host-level, not per-checkout). Worktree launch ships with the launcher;
-  mise/devcontainer targets deferred to Phase 9.
-- **Pairing**: Heeler QR ceremony over manual-only config; `fl pair <code>`
-  is text-mode enrollment for a laptop (no camera).
-- **Notifications**: blocked/done only, delivered by flockd notifier plugins;
-  cross-OS ambition recorded — herdr as the moat for dev-on-the-go while
-  flock gives the powerful desktop-native experience. No relay infra now.
-- **Context-size caveat**: no schema field exists in any repo; the Phase 3.3
-  row needs a live probe of the `tokens` map before its format grill.
-
-Review round (2026-10-22, post-commit advisories — folded in. NOTE: the
-first two bullets below described the fork-dialect world and are
-SUPERSEDED by the fork-free cutover decision (Phase 5, same day) — kept
-as history, not current truth; the geometry-ownership root cause in
-bullet 2 was wrong once already and is moot under the PTY attach):
-
-- **flockd is subscribe-push + poll-as-repair**, not pure-push: every native
-  herdr client pairs subscriptions with snapshot reconciliation; the 2 s
-  poll survives as repair/slow-reconcile only. STALE-STATE BUDGET: resolved
-  by arena evidence (herdr TUI, rootshell, Heeler all keep degraded rows
-  visible with status/last-good info; none hide) — default locked: visible
-  with timestamp, per-host reconcile local 2-5 s / ssh 10-30 s (M0.3).
-  ~~was an open grill~~.
-- **[SUPERSEDED — was wrong] Takeover zombie root cause is fl's geometry
-  ownership**: claim-on-attach evict theory; the live probe showed the
-  phone evicted fl's ATTACH via direct --takeover while the tab geometry
-  never left fl's stored size, and rootshell's mirroring is client-side.
-  Moot under fork-free (no control-stream viewer, no claims).
-- **Focus fix uses the widget's proven form**: `hl.dsp.focus({window =
-  "title:…"})`, not legacy `hyprctl dispatch focuswindow` (still valid —
-  applies to popup row focus in the widget).
-- **Park message fiction**: [SUPERSEDED by cutover — fl take and the park
-  path are deleted outright, not reworded].
-- **Phase 8 transport must be evaluated against `herdr machine add`**
-  (upstream saved-machines + SSH stdio bridge) before building a bespoke
-  flock transport — ride herdr's maintained path where it fits.
-- **Pairing caveat**: Heeler's ceremony needs real OpenSSH; Tailscale SSH
-  alone can't run it (forced commands). Verify remotes run stock sshd.
-
-## Environment facts (for any session touching this)
-
-- Repo = plugin: manifest.json at root; deploy = rsync-minus-.git into
-  ~/.config/omarchy/plugins/flock/ (process + restart/verify loop in AGENTS.md).
-- Server state is the user's live session: NEVER `herdr server stop`;
-  config goes through `herdr server reload-config`.
-- docs/architecture-notes.md is HISTORICAL since the fork-free cutover —
-  describes the control-stream dialect fl no longer speaks. Fork quirks
-  (workspace-create object shape, title suffix, close semantics) that
-  survive the cutover are noted in the relevant roadmap items.
-- Round-3 close semantics (window close → park agent panes / close
-  agentless panes) survived fl_client's deletion: its new home is the
-  M0.1-forkfree attach wrapper — on attach-process exit, re-check pane
-  agent-ness against the CLI, then close if agentless (same freshness
-  rule; never on park/error exits).
-- Heeler plugin is installed and enabled on this laptop
-  (`herdr plugin list` → heeler, config at ~/.config/herdr/plugins/config/heeler).
-- Research clones (read-only, scratch): /home/noor/repos/{rootshell,Heeler,
-  rootshell-herdr-fork} and /tmp/rootshell-herdr-fork-branch (fork branch;
-  re-clone from github.com/kitknox/herdr if /tmp was cleaned).
+- Repo = plugin: manifest.json at root; deploy loop is in AGENTS.md.
+- Server state is the user's live session: never `herdr server stop`; config
+  goes through `herdr server reload-config`.
+- Heeler plugin is installed on this laptop (`herdr plugin list`).
+- Research clones (read-only scratch): /home/noor/repos/{rootshell,Heeler,
+  rootshell-herdr-fork}.
