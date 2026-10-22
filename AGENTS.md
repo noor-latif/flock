@@ -129,6 +129,7 @@ sure. Skip reload lines only when a NEW startup block follows them.
   disposition never runs on park/error exits.
 - **fl --force is a flag** parsed out of positional args everywhere — it
   once became a literal pane id ("attaching to --force", argparse crash).
-- `herdr update` upgrades the fork binary; `--handoff` migrates the live
-  server in place (agents survive). Upstream 0.9.x has no control stream →
-  the fork stays dependency #0.
+- `herdr` on PATH is stock (`/usr/bin/herdr` -> `~/.local/opt/herdr-stock`), so
+  `herdr update` updates stock; `--handoff` migrates the live server in place
+  (agents survive). Stock has no control stream, so the current `fl_client.py`
+  cannot open new windows until the PR-2 cutover (ROADMAP).
