@@ -126,8 +126,11 @@ cutover below — no control-stream viewer, no claims, no succession.
   herdr reaps it per its own semantics).
   (a3) Title emission is fl's job: `agent attach` clients are never
   foreground (headless.rs:1493-1519, clients.rs:467-473) and receive NO
-  WindowTitle — fl writes OSC 2 (`\x1b]2;fl:<ws> — pane <id>\x07`) to its
-  pty BEFORE exec; static title only (no live status segment post-exec).
+  WindowTitle — fl sets the title via foot's `-T` argument at spawn
+  (`foot -T "fl:<ws> — pane <id>"`), plus an OSC 2 write from the
+  surviving wrapper BEFORE the child takes the terminal (belt and braces;
+  the attach TUI never rewrites it); static title only (no live status
+  segment post-exec).
   (a4) Focus-existing guard: fifo is gone; second `fl <pane>` must not
   exit-1-and-die (server refuses a second attach, headless.rs:1787-1799) —
   pre-attach `herdr` check: if `agent attach` fails with
