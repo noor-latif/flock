@@ -57,16 +57,30 @@ any item below that says "per research".
 
 ## Phase 5 — reclaim + window bugs (live failures, 2026-10-22 screenshots)
 
-- ☐ 1. Takeover zombie: on `terminal.detached{reason:"takeover"}` the client
-  today parks into a dead window with a scary banner. Fix: behave like herdr's
-  own client — clean `terminal.detach`, keep the bridge, quiet retry loop, and
-  resume the attach (claim:false) when the pane frees. One log line, no park
-  UI, no exit. Native geometry-following (smallest device wins) is herdr's own
-  behavior and is NOT reimplemented.
-- ☐ 2. `focus_or_hint` breaks on hyprctl's Lua dispatch path: titles with
-  `:`/spaces raise `')' expected near 'title'` and fl prints "focused its
-  window" without checking the exit code. Fix quoting for the hl.dispatch
-  wrapper, verify the exit status, fall back to the hint text on failure.
+- ☐ 1. Takeover zombie — root cause first: fl is a geometry size-owner
+  (`push_geometry(claim_edge=True)` on attach + on hyprctl focus), and the
+  fork's control stream treats a size-owning second attach as a conflict →
+  evicts the existing attach with `TerminalDetachReason::Takeover`. That is
+  why the phone's "smallest device wins" resize evicts the desktop window
+  instead of mirroring. TWO-PART fix:
+  (a) reclaim path: on `terminal.detached{reason:"takeover"}` — clean
+  `terminal.detach`, keep the bridge, quiet retry loop, resume attach
+  (`takeover:false`, claim:false) when the pane frees; fix the parked-window
+  message to name the path that actually works (`fl <pane> --force`, shared
+  attach), never `fl take` (its fifo is gone by then);
+  (b) claim-policy fork (needs a grill before implementing): follower-only
+  mode — `claim:false` always, `tab.set_geometry` stored-only — makes fl a
+  pure mirror (no evictions, no reclaim verb, retires claim-on-focus) vs
+  owner mode (today's evictions). The user's stated mental model
+  ("smallest device wins, resets when I put the phone away") sounds like
+  follower mode, but phone-off must restore DESKTOP geometry — verify live
+  which mode actually produces that before choosing.
+- ☐ 2. `focus_or_hint` breaks on hyprctl's Lua dispatch path: legacy
+  `hyprctl dispatch focuswindow 'title:<t>'` becomes
+  `hl.dispatch(focuswindow title:…)` → `')' expected near 'title'`, no focus,
+  and fl prints "focused its window" without checking. Fix: use the working
+  form BarWidget.qml already uses — `hl.dsp.focus({ window = "title:<escaped>"
+  })` — verify exit status, fall back to the hint text on failure.
 - ☐ 3. Kill the `fl take` pane-env fiction: it requires `HERDR_PANE_ID` + a
   live client fifo, i.e. it can never run in the parked window it exists for.
   Reclaim belongs to the popup/attach flow (decision r1: no suggested fl
@@ -78,12 +92,23 @@ any item below that says "per research".
 Shape verified against herdr's own architecture (research
 `herdr-architecture-verdict.md`): one authority + thin clients is herdr's
 proven layout; the cross-host aggregate is the only genuinely new layer.
-flockd must SUBSCRIBE, not poll, and own as little as possible.
+flockd is subscribe-push with poll-as-repair — herdr's own clients all pair
+subscriptions with periodic snapshot reconciliation; pure-push would make
+flockd's per-host cursor + gap policy the silent-staleness surface.
 
 - ☐ 1. flockd (Python stdlib): per-host connection = `session.snapshot` once,
   then `events.subscribe` (fork hosts may add `control.list`/`events.gap`,
-  capability-gated); blocking `agent.wait` for transitions. NO 2 s polling —
-  herdr already computes transitions server-side.
+  capability-gated); blocking `agent.wait` for transitions. The 2 s poll
+  becomes repair only: fired on gap/Lost/subscription death, and a slow
+  reconciliation tick (herdr's native pattern) — never the discovery path.
+- ☐ 1b. Stale-state budget (grill before Phase 6 lands): what may a surface
+  show, and for how long, when a host is degraded? Decide: widget renders
+  host rows with last-good timestamp vs hides them; reconciliation interval
+  per host class (local 2-5 s, ssh 10-30 s).
+- ☐ 1c. Fork-only features stay capability-gated, not dropped:
+  `control.list` is the only cheap "who owns what" source (serves the
+  Phase 5 claim policy and collision handling); `events.gap` improves
+  resync. Both degrade to snapshot-reset on stock hosts.
 - ☐ 2. NDJSON socket `$XDG_RUNTIME_DIR/flock/state.sock` mirroring herdr's wire
   shape (`{"id","method","params"}` / `{"id","result"|"error"}`) so surfaces are
   testable against herdr fixtures. Services: agents, hosts, actions, events.
@@ -137,7 +162,12 @@ The fork remains required ONLY on the laptop (fl windows).
   JSON RPC (snapshot + events.subscribe), PTY exec
   `HERDR_SOCKET_PATH=… herdr agent attach <pane> [--takeover]` for terminals.
   Remote attach is single-owner stock behavior — takeover prompt on collision
-  (user-initiated only).
+  (user-initiated only). EVALUATE FIRST against `herdr machine add <ssh-target>`
+  (upstream's saved-machine catalog: SSH stdio bridge → local socket,
+  independent reconnects, `--machine` prefixing): if its per-host bridge fits
+  flockd's consumption shape, ride herdr's maintained path instead of a
+  bespoke flock transport; flockd then owns only aggregation. Decide with a
+  spike before writing transport code.
 - ☐ 3. Popup sections become host → workspace; host rows carry status +
   measured latency (Heeler hosts-screen model); badge counts all hosts.
 - ☐ 4. QR pairing, text-mode: adopt the Heeler plugin ceremony (ALREADY
@@ -145,7 +175,12 @@ The fork remains required ONLY on the laptop (fl windows).
   `HERDR-PAIR:1:…` envelope exactly as the iPhone does: connect with the
   Bootstrap Key, write the laptop's Device Key to stdin, pin the host
   fingerprint. No camera needed; the host renders the code via the plugin's
-  `pair` action. Manual `[[hosts]]` entries stay the fallback.
+  `pair` action. Manual `[[hosts]]` entries stay the fallback. CAVEAT
+  (plugin README): Tailscale SSH alone cannot run the ceremony — it needs
+  real OpenSSH on the host (authorized_keys forced commands); plugin skips
+  `SSH-2.0-Tailscale` servers. All our hosts are Tailscale, so verify each
+  remote runs stock sshd (Tailscale subnet routing or plain tailscaled with
+  OpenSSH on :22 is fine).
 
 ## Phase 9 — deferred / future (explicitly not committed)
 
@@ -205,6 +240,28 @@ Round 5-7 (2026-10-22, rootshell/Heeler research):
   flock gives the powerful desktop-native experience. No relay infra now.
 - **Context-size caveat**: no schema field exists in any repo; the Phase 3.3
   row needs a live probe of the `tokens` map before its format grill.
+
+Review round (2026-10-22, post-commit advisories — folded in):
+
+- **flockd is subscribe-push + poll-as-repair**, not pure-push: every native
+  herdr client pairs subscriptions with snapshot reconciliation; the 2 s
+  poll survives as repair/slow-reconcile only. Stale-state budget per host
+  class is an explicit grill item (Phase 6.1b).
+- **Takeover zombie root cause is fl's geometry ownership**, not just parked
+  UX: claim-on-attach/focus makes the fork treat fl as a size-owner and evict
+  it when the phone resizes. Follower-only mode (`claim:false` always) is the
+  candidate that matches the user's "smallest device wins" mental model —
+  verify phone-off restores desktop geometry live before choosing
+  (Phase 5.1b).
+- **Focus fix uses the widget's proven form**: `hl.dsp.focus({window =
+  "title:…"})`, not legacy `hyprctl dispatch focuswindow` (Phase 5.2).
+- **Park message fiction**: after takeover the fifo is gone, so the message
+  must name `fl <pane> --force`, never `fl take` (Phase 5.1a).
+- **Phase 8 transport must be evaluated against `herdr machine add`**
+  (upstream saved-machines + SSH stdio bridge) before building a bespoke
+  flock transport — ride herdr's maintained path where it fits.
+- **Pairing caveat**: Heeler's ceremony needs real OpenSSH; Tailscale SSH
+  alone can't run it (forced commands). Verify remotes run stock sshd.
 
 ## Environment facts (for any session touching this)
 
