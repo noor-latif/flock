@@ -4,10 +4,11 @@ Status markers: ☐ todo · ◐ in progress · ☑ done. Update them here, not i
 Decisions locked in grilling are recorded in the decision log at the bottom;
 anything marked OPEN needs a grilling round before implementation.
 
-**OPEN grills blocking work:** stale-state budget per host class (M0.3).
-RESOLVED 2026-10-22: claim-mode 5.1b — mooted by the fork-free cutover
-(Phase 5 decision); displaced UX = "herdr handles it" (attach evicted,
-window dies, no UX).
+**OPEN grills blocking work:** none. RESOLVED 2026-10-22: claim-mode 5.1b —
+mooted by the fork-free cutover (Phase 5); displaced UX = "herdr handles it"
+(attach evicted, window dies, no UX); stale-state budget = keep degraded
+rows visible with status + last-good age (arena pattern), reconcile local
+2-5 s / ssh 10-30 s (M0.3; decision-log Review round).
 Reviewers at milestones: `opencode run -m opencode/deepseek-v4.1-flash-free`
 (M0 done → /tmp/flock-review/m0-review.md) and
 `opencode/minimax-m3.1-flash-free` (from next milestone), run inside a herdr
@@ -112,6 +113,10 @@ cutover below — no control-stream viewer, no claims, no succession.
   (c) delete fl_client.py control-stream paths; keep only what `fl list`/
   `fl new` need (CLI JSON calls — those are stock APIs).
   (d) `fl take` verb deleted (fifo gone with the client).
+  (d2) Close semantics (round-3 decision) gets a new home: thin wrapper
+  around the attach process — on exit (HUP/term/window close), re-check
+  pane agent-ness live against the CLI; agent panes park (kept),
+  agentless panes close via `herdr pane close`. Never on error exits.
   (e) BarWidget fixes independent of the cutover: acks load/save round-trip
   (flat map on disk vs doc.acked loader), pane matcher endsWith + class
   check, ack-after-action-success (M0.4 principle applied now where cheap).
@@ -161,11 +166,13 @@ now (badge is the ambient surface; revisit if push wanted).
   are host-level (NOT per-checkout) — that is the whole "persisting configs"
   story; no copy step. Env targets (mise/devcontainer) DEFERRED — see Phase 10.
 
-## Phase 8 — remote hosts (Heeler dialect; fork stays local-only)
+## Phase 8 — remote hosts (Heeler dialect; flock is fork-independent)
 
 Decision: shared view/geometry over remote is bloat — Heeler's stock-herdr
 dialect wins for remotes (research `heeler.md` §1, `heeler-host-helper.md`).
-The fork remains required ONLY on the laptop (fl windows).
+Since the Phase 5 cutover, flock requires stock herdr only — the fork
+binary is the user's own phone/rootshell concern, not a flock dependency
+on any machine.
 
 - ☐ 1. `[[hosts]]` in config.toml: name, ssh alias, session, notify level,
   poll override. No daemon, no plugin, nothing installed on remotes beyond
@@ -253,22 +260,29 @@ Round 5-7 (2026-10-22, rootshell/Heeler research):
 - **Context-size caveat**: no schema field exists in any repo; the Phase 3.3
   row needs a live probe of the `tokens` map before its format grill.
 
-Review round (2026-10-22, post-commit advisories — folded in):
+Review round (2026-10-22, post-commit advisories — folded in. NOTE: the
+first two bullets below described the fork-dialect world and are
+SUPERSEDED by the fork-free cutover decision (Phase 5, same day) — kept
+as history, not current truth; the geometry-ownership root cause in
+bullet 2 was wrong once already and is moot under the PTY attach):
 
 - **flockd is subscribe-push + poll-as-repair**, not pure-push: every native
   herdr client pairs subscriptions with snapshot reconciliation; the 2 s
-  poll survives as repair/slow-reconcile only. Stale-state budget per host
-  class is an explicit grill item (Phase 6.1b).
-- **Takeover zombie root cause is fl's geometry ownership**, not just parked
-  UX: claim-on-attach/focus makes the fork treat fl as a size-owner and evict
-  it when the phone resizes. Follower-only mode (`claim:false` always) is the
-  candidate that matches the user's "smallest device wins" mental model —
-  verify phone-off restores desktop geometry live before choosing
-  (Phase 5.1b).
+  poll survives as repair/slow-reconcile only. STALE-STATE BUDGET: resolved
+  by arena evidence (herdr TUI, rootshell, Heeler all keep degraded rows
+  visible with status/last-good info; none hide) — default locked: visible
+  with timestamp, per-host reconcile local 2-5 s / ssh 10-30 s (M0.3).
+  ~~was an open grill~~.
+- **[SUPERSEDED — was wrong] Takeover zombie root cause is fl's geometry
+  ownership**: claim-on-attach evict theory; the live probe showed the
+  phone evicted fl's ATTACH via direct --takeover while the tab geometry
+  never left fl's stored size, and rootshell's mirroring is client-side.
+  Moot under fork-free (no control-stream viewer, no claims).
 - **Focus fix uses the widget's proven form**: `hl.dsp.focus({window =
-  "title:…"})`, not legacy `hyprctl dispatch focuswindow` (Phase 5.2).
-- **Park message fiction**: after takeover the fifo is gone, so the message
-  must name `fl <pane> --force`, never `fl take` (Phase 5.1a).
+  "title:…"})`, not legacy `hyprctl dispatch focuswindow` (still valid —
+  applies to popup row focus in the widget).
+- **Park message fiction**: [SUPERSEDED by cutover — fl take and the park
+  path are deleted outright, not reworded].
 - **Phase 8 transport must be evaluated against `herdr machine add`**
   (upstream saved-machines + SSH stdio bridge) before building a bespoke
   flock transport — ride herdr's maintained path where it fits.
@@ -281,9 +295,15 @@ Review round (2026-10-22, post-commit advisories — folded in):
   ~/.config/omarchy/plugins/flock/ (process + restart/verify loop in AGENTS.md).
 - Server state is the user's live session: NEVER `herdr server stop`;
   config goes through `herdr server reload-config`.
-- Fork quirks live in docs/architecture-notes.md and are fixed into fl;
-  workspace create returns an object with a builtin root pane (both shapes
-  accepted).
+- docs/architecture-notes.md is HISTORICAL since the fork-free cutover —
+  describes the control-stream dialect fl no longer speaks. Fork quirks
+  (workspace-create object shape, title suffix, close semantics) that
+  survive the cutover are noted in the relevant roadmap items.
+- Round-3 close semantics (window close → park agent panes / close
+  agentless panes) survived fl_client's deletion: its new home is the
+  M0.1-forkfree attach wrapper — on attach-process exit, re-check pane
+  agent-ness against the CLI, then close if agentless (same freshness
+  rule; never on park/error exits).
 - Heeler plugin is installed and enabled on this laptop
   (`herdr plugin list` → heeler, config at ~/.config/herdr/plugins/config/heeler).
 - Research clones (read-only, scratch): /home/noor/repos/{rootshell,Heeler,
