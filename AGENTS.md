@@ -81,3 +81,31 @@ sure. Skip reload lines only when a NEW startup block follows them.
   possible.
 - GitHub ssh/https push available: gh CLI authenticated as noor-latif,
   https protocol. Public repo name for phase 2: github.com/noor-latif/flock.
+
+## Hard-won traps (do not relearn these)
+
+- **Stub tests must patch real imported modules, never runpy**: runpy.run_path
+  returns a snapshot dict — rebinding names on it does NOT reach the
+  functions' true globals, so a "stubbed" call fired a REAL
+  `herdr pane close` and deleted a live pane. Proof: 2026-10-22, wB:p1.
+  Use importlib SourceFileLoader for the extension-less `fl/fl`; fake
+  pane ids (wTEST:*) only; after any accidental fork mutation, verify
+  workspace state and honestly restore + disclose to the user.
+- **HERDR_ENV=1 rides in agent tool-shells AND trips the launcher's own
+  TUI guard** — the `env -u HERDR_ENV -u TERM_PROGRAM` prefix applies to
+  `fl` itself, not just herdr CLI calls.
+- **Rename/contact-surface mechanics**: the plugin id lives in manifest.json
+  + shell.json registration + the run-dir fifo subdir; pre-rename clients
+  keep fifos under the old dir, so guards read both during transitions.
+  Quickshell hot-reloads QML on plugin dir change ("Local plugin changed,
+  reloading"); `omarchy-restart-shell` refuses while the session is locked.
+- **Close semantics default** (grill round 3): window close (HUP/SIGTERM)
+  parks agent panes (kept, agent runs server-side) and closes agentless
+  panes via `herdr pane close` — freshness re-checked live before closing;
+  overridden by ~/.config/flock/config.toml or FLOCK_CLOSE_SHELLS. The
+  disposition never runs on park/error exits.
+- **fl --force is a flag** parsed out of positional args everywhere — it
+  once became a literal pane id ("attaching to --force", argparse crash).
+- `herdr update` upgrades the fork binary; `--handoff` migrates the live
+  server in place (agents survive). Upstream 0.9.x has no control stream →
+  the fork stays dependency #0.
