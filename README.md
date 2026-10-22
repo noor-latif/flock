@@ -1,11 +1,24 @@
-# flock — one window, one agent
+# flock — flocks all your agents into a native experience with omni-directional sync to your phone
+I created this because I was annoyed at herdr not scaling well with my tiling window manager, and made me ditch years of tiling muscle memory and gave me a cluttered TUI. I missed the single focused windows and workspaces and created flock to give the herdr paradigm a deeper integration into my OS of choice (Currently the "AI-native" Omarchy distro) boosting the orchestration power.
+Built on the "everything-is-a-plugin" framework behind the Deepseek harness, [Cordis](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/cordis-tutorial/index.md) to allow you to do the same for your OS and distro. If you develop an abstraction for your own OS flavour, create an issue and I will add you to a list of supported endpoints at the end of this readme.
 
+TLDR, what flock lets you do;
+1. Bring your own OS
+2. Bring your own cloud coding agents.
+3. Bring your own terminal
+4. Bring your own AI harness > BYOK
+5. Bring all of this with you in your pocket with [Herdr Mobile](http://play.google.com/store/apps/details?id=dev.herdr.mobile&hl=en) for Android or [Heeler](https://github.com/ZingerLittleBee/Heeler) for iOS.
+6. Bring it all back with **Herdr** powered multiplexing. No portal, or handing off back and forth.
+
+Every session is always synced, no ACP involved, just native harness experience across all your devices.
+Works wherever **Herdr** runs.
+
+## Boring part:
 `flock` rebinds plain terminal windows to single panes of your herdr session,
 so an agent gets a real, movable window with your tiling kept for
-*you*. Its Omarchy bar widget shows every agent in the session as one status
-badge and a click-to-focus popup. Your iPhone (rootshell) pairing is
-unaffected — `fl` windows are just more clients of the same session.
+*you*. Its batteries-included Omarchy bar widget (QuickShell + HyprLand) shows every agent in the session with its status and a click-to-focus. Your phone has access to the herdr sessions immediately, just like tmux. but with agent notifications built in. It's basically tmux -CC but built for the agent lifecycle.
 
+## Everything below might be outdated and will get revamped soon
 ## Dependencies — read this first
 
 | Need | Why |
