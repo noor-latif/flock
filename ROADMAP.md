@@ -9,10 +9,12 @@ mooted by the fork-free cutover (Phase 5); displaced UX = "herdr handles it"
 (attach evicted, window dies, no UX); stale-state budget = keep degraded
 rows visible with status + last-good age (arena pattern), reconcile local
 2-5 s / ssh 10-30 s (M0.3; decision-log Review round).
-Reviewers at milestones: `opencode run -m opencode/deepseek-v4.1-flash-free`,
+Reviewers at milestones: `opencode run -m surplus/deepseek-v4.1-flash`,
 run inside a herdr pane in workspace `flrev`, output teed to
-/tmp/flock-review/ (minimax-m3.1 deprecated 2026-10-22 before first use;
-M0 review → m0-review.md, M0.1 plan review → m01-review.md).
+/tmp/flock-review/. (History: opencode free tier exhausted 2026-10-22 —
+ALL `-free` models quota-blocked, likely leaked zombie runs + M0 review;
+minimax-m3.1 deprecated same day before use. Surplus key is the fallback
+route.) M0 review → m0-review.md, M0.1 plan review → m01-review.md.
 Research ground truth for rounds 5-7 lives in `/home/noor/repos/flock-research/`
 (`rootshell.md`, `heeler.md`, `fork-delta.md`, `heeler-host-helper.md`,
 `herdr-architecture-verdict.md`) — file:line-cited; re-read before implementing
