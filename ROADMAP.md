@@ -3,6 +3,11 @@
 Status markers: ☐ todo · ◐ in progress · ☑ done. Update them here, not in chat.
 Decisions locked in grilling are recorded in the decision log at the bottom;
 anything marked OPEN needs a grilling round before implementation.
+
+**OPEN grills blocking work:** (1) geometry claim-mode (Phase 5.1b — after a
+live takeover probe); (2) stale-state budget per host class (Phase 6 / M0.3).
+External reviewer: `opencode run -m opencode/deepseek-v4.1-flash-free` reviews
+each milestone (M0 done → /tmp/flock-review/m0-review.md).
 Research ground truth for rounds 5-7 lives in `/home/noor/repos/flock-research/`
 (`rootshell.md`, `heeler.md`, `fork-delta.md`, `heeler-host-helper.md`,
 `herdr-architecture-verdict.md`) — file:line-cited; re-read before implementing
@@ -14,7 +19,10 @@ any item below that says "per research".
   before first-connect attach; park on vanish; re-resolve once on `not_found`.
 - ☑ 2. Panel auto-dismiss — row click focuses/spawns AND closes the popup.
 - ☑ 3. Persisted dismissals — acks in `${XDG_STATE_HOME:-~/.local/state}/flock/acks.json`,
-  debounced write, pruned to still-done agents. Live-verified.
+  debounced write, pruned to still-done agents.
+  ⚠ M0 review found the load path broken (save/load format mismatch) —
+  restart-load silently drops every ack; fix lands in M0.1(a). The earlier
+  "LIVE VERIFIED" claim covered only the write side.
 - ☑ 4. Friends-first README pass — fork as dependency #0, CLI vs widget split,
   dismissal semantics, troubleshooting rows.
 - ☑ 5. Where-am-I — DISSOLVED (opencode's own hidden panel, not a flock surface).
@@ -55,81 +63,72 @@ any item below that says "per research".
   `pane.output_matched`/`scroll_changed` subscriptions as cheap activity
   signals if needed (fork-verified, research `fork-delta.md` §1g).
 
-## Phase 5 — reclaim + window bugs (live failures, 2026-10-22 screenshots)
+## Phase 5 — reclaim + window bugs (amended by M0 review)
 
-- ☐ 1. Takeover zombie — root cause first: fl is a geometry size-owner
-  (`push_geometry(claim_edge=True)` on attach + on hyprctl focus), and the
-  fork's control stream treats a size-owning second attach as a conflict →
-  evicts the existing attach with `TerminalDetachReason::Takeover`. That is
-  why the phone's "smallest device wins" resize evicts the desktop window
-  instead of mirroring. TWO-PART fix:
-  (a) reclaim path: on `terminal.detached{reason:"takeover"}` — clean
-  `terminal.detach`, keep the bridge, quiet retry loop, resume attach
-  (`takeover:false`, claim:false) when the pane frees; fix the parked-window
-  message to name the path that actually works (`fl <pane> --force`, shared
-  attach), never `fl take` (its fifo is gone by then);
-  (b) claim-policy fork (needs a grill before implementing): follower-only
-  mode — `claim:false` always, `tab.set_geometry` stored-only — makes fl a
-  pure mirror (no evictions, no reclaim verb, retires claim-on-focus) vs
-  owner mode (today's evictions). The user's stated mental model
-  ("smallest device wins, resets when I put the phone away") sounds like
-  follower mode, but phone-off must restore DESKTOP geometry — verify live
-  which mode actually produces that before choosing.
-- ☐ 2. `focus_or_hint` breaks on hyprctl's Lua dispatch path: legacy
-  `hyprctl dispatch focuswindow 'title:<t>'` becomes
-  `hl.dispatch(focuswindow title:…)` → `')' expected near 'title'`, no focus,
-  and fl prints "focused its window" without checking. Fix: use the working
-  form BarWidget.qml already uses — `hl.dsp.focus({ window = "title:<escaped>"
-  })` — verify exit status, fall back to the hint text on failure.
-- ☐ 3. Kill the `fl take` pane-env fiction: it requires `HERDR_PANE_ID` + a
-  live client fifo, i.e. it can never run in the parked window it exists for.
-  Reclaim belongs to the popup/attach flow (decision r1: no suggested fl
-  commands in user-facing messages). Fold any surviving need into `fl <pane>`
-  collision handling.
+The M0 review (`/tmp/flock-review/m0-review.md`, deepseek-v4.1-flash, verified
+spot-checks) corrected two committed premises: protocol-3 tab followers are
+NOT evicted by a second follower (`EvictScope::TabFollowerTakeover` evicts
+only terminal-geometry attaches / protocol ≤1, fork `control_stream.rs:36-53`)
+— so the takeover evict on the desktop must come from a direct terminal
+attach (`--takeover`), and the claim-mode question needs a live probe
+(`control.list` during a real takeover) before any design is locked.
+Also "pure follower (no stored size)" and "phone-off restores desktop
+geometry" are mutually exclusive: restore works only via stored tab sizes
+(successor rule `control_stream.rs:426-461`), but storing a size claims the
+tab on next keystroke (`:1495-1533`). Pick two of three at the 5.1b grill.
 
-## Phase 6 — flockd core (cordis-style authority for surfaces)
+- ☐ M0.1 Fix-before-daemonise (one PR, mechanical parts):
+  (a) acks loader/save mismatch — saveAcks writes a flat map, ackLoad
+  requires `doc.acked`; on-disk file is flat ⇒ acks never load, Phase 1.3's
+  "live-verified" was false. Fix round-trip.
+  (b) widget pane matcher: `indexOf("pane "+id)` matches `w1:p1` inside
+  `w1:p10` and ignores window class — use `endsWith` + class check (fl/fl
+  already does).
+  (c) park() leaks bridge/fifo/title and the parked client still answers
+  `pane_is_attached` true — cleanup() on park, and the parked message must
+  say `fl <pane> --force` (never `fl take`).
+  (d) first-snapshot race: assign attach_id before pump processes the
+  pushed snapshot (route by pending-attach queue, not by id compare).
+  (e) ping timeout ("ping failed") never triggers reconnect — classify
+  errors properly; single-flight reconnect (dedupe scheduled tasks).
+  (f) monotonic request ids (fixed ids like "rt"/"att" collide across
+  concurrent refreshes; wrong-reply delivery).
+  (g) focus fix: `hl.dsp.focus({ window = "title:<escaped>" })` (widget's
+  proven form), verify exit status.
+  (h) `resolve_tab_id` fallback to snapshot pane record; claim-mode decision
+  (5.1b) after the live probe — needs a grill, NOT in this PR.
+- ☐ M0.2 One reader: extract widget's read path into `flockd --once` /
+  `fl status --snapshot`; delete QML's shell pipeline. One parser, one schema.
+- ☐ M0.3 Daemon read-only single-host (plain API socket, NOT control stream —
+  `agent.wait`/`agent.prompt` are refused on control streams;
+  `control.list` works on any connection). Widget consumes state.sock,
+  falls back to the same `--once` implementation, renders degraded.
+  Ack ledger stays widget-local until M0.5.
+- ☐ M0.4 Actions split by owner: `host.*` (new_agent/prompt/close_pane/
+  worktree) via flockd; `surface.focus_window` stays local; ack conditional
+  on action result (today widget acks before focus succeeds).
+- ☐ M0.5 Ack ownership → flockd (single writer; prune only on authoritative
+  host snapshots — current prune drops acks during degraded polls).
+- ☐ M0.6 Multi-host: host-qualified ids everywhere (acks, titles, fifos,
+  actions — bare `w1:p1` collides across hosts), cross-host ordering key
+  (`state_change_seq` is per-host; add host-local seq + receive time),
+  gap policy extended with boot_id + pane-set changes.
+- ☐ M0.7 Notifier plugin + fl TUI + macOS adapter. RULE: control plane via
+  flockd only — terminal attach/output stays direct host↔surface, flockd
+  never proxies `terminal.*`.
 
-Shape verified against herdr's own architecture (research
-`herdr-architecture-verdict.md`): one authority + thin clients is herdr's
-proven layout; the cross-host aggregate is the only genuinely new layer.
-flockd is subscribe-push with poll-as-repair — herdr's own clients all pair
-subscriptions with periodic snapshot reconciliation; pure-push would make
-flockd's per-host cursor + gap policy the silent-staleness surface.
+## Phase 6 — flockd core (superseded ordering: see Phase 5 M0.2-M0.7)
 
-- ☐ 1. flockd (Python stdlib): per-host connection = `session.snapshot` once,
-  then `events.subscribe` (fork hosts may add `control.list`/`events.gap`,
-  capability-gated); blocking `agent.wait` for transitions. The 2 s poll
-  becomes repair only: fired on gap/Lost/subscription death, and a slow
-  reconciliation tick (herdr's native pattern) — never the discovery path.
-- ☐ 1b. Stale-state budget (grill before Phase 6 lands): what may a surface
-  show, and for how long, when a host is degraded? Decide: widget renders
-  host rows with last-good timestamp vs hides them; reconciliation interval
-  per host class (local 2-5 s, ssh 10-30 s).
-- ☐ 1c. Fork-only features stay capability-gated, not dropped:
-  `control.list` is the only cheap "who owns what" source (serves the
-  Phase 5 claim policy and collision handling); `events.gap` improves
-  resync. Both degrade to snapshot-reset on stock hosts.
-- ☐ 2. NDJSON socket `$XDG_RUNTIME_DIR/flock/state.sock` mirroring herdr's wire
-  shape (`{"id","method","params"}` / `{"id","result"|"error"}`) so surfaces are
-  testable against herdr fixtures. Services: agents, hosts, actions, events.
-- ☐ 3. Cross-host aggregate: merged agent list, per-host online/degraded
-  status. Gap policy: one host's stream reports Lost/gap → reset THAT host's
-  state from a fresh snapshot only (per-connection rule, never global).
-- ☐ 4. Action routing: new_agent / prompt / focus / close / worktree → the
-  target host's socket; no local heuristics (herdr's `--wait` verbs already
-  return "submitted and reached state").
-- ☐ 5. Notifier plugins: blocked/done → `notify-send` first; notifier = a
-  plugin over flockd's event stream so cross-OS channels (relay → iPhone,
-  Heeler-style) plug in without touching core.
-- ☐ 6. Lifecycle: session-scoped, auto-start on first surface demand, dies
-  with the session; `not running` is a rendered state surfaces show, never an
-  exception. No handoff machinery (flockd holds no PTYs); durable bits
-  (acks, last-seen cursors) to disk before exit.
-- ☐ 7. BarWidget.qml consumes flockd (drops its own poll); the old poll stays
-  only as reconnect fallback, and degraded hosts render visibly instead of
-  silently showing stale state.
-- ☐ 8. Docs: surface-plugin contract (the cordis mapping: surfaces claim
-  nothing, consume events/actions; new capability once → every surface).
+Boundary (from M0 review, verdict A): flockd owns aggregate + action
+fan-out + notifier registry + degraded-state truth. It does NOT own:
+herdr's machine catalog (Phase 8 spike decides catalog owner — if
+`herdr machine add` fits, flockd aggregates over herdr supervisors
+instead of a second `[[hosts]]` transport), surface-local focus, or the
+terminal data plane. Host-qualified identity and a hello/version +
+socket mode 0o600 + not_running error shape are part of the socket
+contract (M0.3). Notifier durability: a blocked transition while flockd
+is down is lost unless a herdr hook spools it — accept-and-document for
+now (badge is the ambient surface; revisit if push wanted).
 
 ## Phase 7 — agent lifecycle launcher (the Heeler sheet, both surfaces)
 
