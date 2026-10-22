@@ -159,8 +159,8 @@ cannot run it).
   `terminal attach`, `--takeover`, `machine add`. The stock CLI talks to the
   running fork server fine. Lifecycle event subscriptions exist since 0.9.0.
 - Stock herdr 0.9.5 (official release binary, sha256-verified) overwrote
-  pacman's `/usr/bin/herdr` (omarchy repo only has 0.9.1; a pacman upgrade of
-  `herdr` reverts it; 0.9.1 backup: `~/.local/opt/herdr-stock/herdr-0.9.1.pacman.bak`).
+  pacman's `/usr/bin/herdr` (omarchy repo only has 0.9.1; `herdr` is in
+  `IgnorePkg` so pacman will not revert it; update by installing the GitHub release binary).
   Copy also at `~/.local/opt/herdr-stock/bin/herdr`. tests/pty_attach.py passes
   13/13 with 0.9.5 as client+server and as client against the fork server.
 - No herdr API reports which client owns a terminal attach.
