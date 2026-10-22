@@ -44,6 +44,18 @@ any item below that says "per research".
 
 ## Phase 3b — popup surfaces
 
+- ☐ 0. Sidebar parity (user request 2026-10-22, herdr TUI sidebar screenshot):
+  popup shows (a) spaces tree with per-workspace state dot, branch +
+  `↑N` git badge, worktree provenance rows; (b) agents grouped by
+  workspace below (the "agents / grouped" list); (c) `+ new tab` row
+  per workspace; (d) rename for tabs/workspaces (long-press/right-click
+  → `tab.rename`/`workspace.rename`). DATA GAP (OPEN decision): socket
+  `WorkspaceInfo` has NO branch/git_ahead_behind (fork
+  `api/schema/workspaces.rs:62-76`) — the TUI's badge rides the client
+  protocol (`server/client_shell.rs:87-89`, computed in
+  `workspace/git/status.rs:193-341`). Pick: fork patch vs flockd git
+  spawn vs tokens-map probe. Also probe whether `tokens` map carries
+  context-size here (Phase 3.3 shares the probe).
 - ☐ 1. Agentless panes: per-workspace disclosure section, collapsed by default;
   rows behave like agent rows (click = focus/spawn).
 - ☐ 2. New-pane affordance for parallel agents in one cwd — folded into the
