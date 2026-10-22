@@ -55,6 +55,29 @@ bottom; anything marked OPEN needs a grilling round before implementation.
 - ☐ 2. Type-to-filter: typing opens a filter; matching is fzf-style FUZZY
   (grilled decision): subsequence match ranked by score — contiguous runs
   and word-boundary hits win, position-independent otherwise.
+- ☐ 3. Per-agent context size in popup rows (user request 2026-10-22; the
+  fork's agent data exposes it today). Format grilling round 4.
+
+## Phase 3b — popup surfaces (grill round 4)
+
+- ☐ 1. Agentless panes in the popup: per-workspace disclosure section
+  (user sketch: expandable under each workspace), collapsed by default so
+  shells never clutter the agent view. Rows behave like agent rows:
+  click = focus/spawn window.
+- ☐ 2. New-pane affordance for parallel agents in one cwd (user workflow:
+  "2 or 3 new agents in the same cwd, branching in big repos"). Options on
+  the table: `fl --new` typed in the cwd (matches muscle memory), a
+  "+ new pane" popup row per workspace, or both. Pick logic stays
+  first-pane meanwhile; auto-focus-on-collision already paths around it.
+- ☐ 3. Self-update story `fl update` — design: locate the flock clone
+  (omarchy plugin clone if present, else a known dev repo, else fresh
+  clone of github.com/noor-latif/flock), git pull --ff-only, re-sync
+  ~/.local/lib/flock + ~/.local/bin/fl + the deployed plugin copy, print
+  old→new version, and hint omarchy-restart-shell when the QML changed.
+  Friends on the plugin path get `omarchy plugin update flock` for the
+  plugin half; fl update handles the CLI half. (herdr side: `herdr update`
+  downloads+installs the fork build itself; --handoff migrates the live
+  server in place — agents survive.)
 
 ## Phase 4 — activity chronology
 
@@ -80,6 +103,17 @@ bottom; anything marked OPEN needs a grilling round before implementation.
 - Chronology: sections reorder by activity (rows inside unchanged).
 - Keyboard: arrows + enter, plus type-to-filter with FUZZY matching.
 - Where-am-I: dissolved (opencode's hidden panel, not flock).
+- Close semantics (round 3): window close parks agents (pane + agent keep
+  running server-side, badge keeps state) and closes agentless panes —
+  no junk shells; overridable via ~/.config/flock/config.toml [close].
+- Collision path (round 3): fl on an already-viewed pane auto-focuses the
+  live window (hyprctl by title suffix), hint only as fallback; --force
+  parsed as a flag everywhere.
+- Fork-verified facts: `herdr pane close <pane_id>` is the shell-cleanup
+  verb; `herdr update` upgrades the fork binary with `--handoff` moving the
+  live server in place (agents survive); the fork stays a hard dependency
+  (upstream 0.9.x has no control stream — attach, claims, geometry
+  ownership and query authority all live there).
 - Publish target: GitHub public under noor-latif.
 - Order: chicken fix + quick wins first, publish fourth, chronology last.
 - Naming (final, grill rounds 3-4): repo/CLI/plugin all `flock`/`fl`.
