@@ -5,7 +5,7 @@ Modes:
   fl                # resolve-or-create the workspace for cwd (label = basename)
                     # + reuse its first pane or create a fresh one-tab pane,
                     # then rebind THIS window to that pane (pass-through client)
-  fl <PANE_ID>      # attach a specific pane in this window
+  fl <PANE_ID>      # attach a specific pane in this window (--force to view)
   fl list           # fzf over all panes of the session, rebind this window
   fl take           # tell the running client in this window to claim geometry
   fl status         # short agent/pane status summary (JSON), for tooling
@@ -16,12 +16,13 @@ activation edges; everything else claim:false; takeover never automatic.
 """
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 
 CLIENT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fl_client.py")
-WH_VERSION = "0.1.0"
+FL_VERSION = "0.1.0"
 HERDR_ENV_VARS = ("HERDR_ENV", "TERM_PROGRAM")
 
 
@@ -127,8 +128,11 @@ def fifo_for_pane(pane_id):
 
 
 def pane_is_attached(pane_id):
-    """A live fl client in *some* window owns this pane iff its fifo exists."""
-    return os.path.exists(fifo_for_pane(pane_id))
+    """A live fl client in *some* window owns this pane iff its fifo exists.
+    Transition shim: pre-rename clients registered under .../wh/."""
+    rtd = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
+    return any(os.path.exists(os.path.join(rtd, d, f"{pane_id}.ctl"))
+               for d in ("fl", "wh"))
 
 
 def attached_hint(pane_id, force_cmd):
@@ -137,7 +141,31 @@ def attached_hint(pane_id, force_cmd):
           f"'{force_cmd}' to view it anyway (shared attach).", file=sys.stderr)
 
 
-def mode_list():
+def focus_or_hint(pane_id):
+    """The attached guard tripped: if a mapped window carries the pane-id
+    title suffix, focus it — surfacing the existing viewer beats lecturing
+    about it. Falls back to the hint text when no window matches."""
+    try:
+        r = subprocess.run(["bash", "-lc", "hyprctl clients -j"],
+                           capture_output=True, text=True)
+        clients = json.loads(r.stdout)
+        target = next((c for c in clients
+                       if c.get("class") == "foot" and c.get("title", "")
+                       .rstrip().endswith(f"pane {pane_id}")), None)
+        if target:
+            lit = target["title"].replace("\\", "\\\\").replace("'", "'\\''")
+            subprocess.run(["bash", "-lc",
+                            f"hyprctl dispatch focuswindow 'title:{lit}'"],
+                           env=herdr_env())
+            print(f"fl: pane {pane_id} already live — focused its window")
+            return True
+    except Exception:
+        pass
+    attached_hint(pane_id, f"fl {pane_id} --force")
+    return False
+
+
+def mode_list(force=False):
     """fzf over panes; rebinds THIS window to the pick."""
     if shutil.which("fzf") is None:
         print("fl: needs fzf installed", file=sys.stderr)
@@ -166,9 +194,9 @@ def mode_list():
     pane_id = by_id.get(key)
     if not pane_id:
         sys.exit(0)
-    if pane_is_attached(pane_id) and "--force" not in args:
-        attached_hint(pane_id, "fl list --force")
-        sys.exit(1)
+    if pane_is_attached(pane_id) and not force:
+        focus_or_hint(pane_id)
+        return
     print(f"fl: attaching to {key}")
     os.execvp("python3", ["python3", CLIENT, "--pane", pane_id])
 
@@ -180,17 +208,28 @@ def mode_status():
 
 def main():
     args = sys.argv[1:]
-    if args and args[0] in ("list", "take", "status"):
-        mode = args[0]
+    force = "--force" in args
+    positional = [a for a in args if not a.startswith("-")]
+    if positional and positional[0] in ("list", "take", "status"):
+        mode = positional[0]
         if mode == "list":
-            mode_list()
+            mode_list(force)
         elif mode == "take":
             # the running client's fifo is derivable from the pane env (the
-            # user types this INSIDE a pane owned by a live client)
-            fifo = os.environ.get("WH_FIFOPATH") or fifo_for_pane(
-                os.environ.get("HERDR_PANE_ID") or os.environ.get("WH_PANE", ""))
-            if not os.path.exists(fifo):
-                if os.environ.get("HERDR_PANE_ID") or os.environ.get("WH_PANE"):
+            # user types this INSIDE a pane owned by a live client); legacy
+            # pre-rename clients still listen under .../wh/
+            pane_id = os.environ.get("HERDR_PANE_ID") or ""
+            fifo = None
+            if pane_id:
+                rtd = os.environ.get("XDG_RUNTIME_DIR",
+                                     f"/run/user/{os.getuid()}")
+                for d in ("fl", "wh"):
+                    candidate = os.path.join(rtd, d, f"{pane_id}.ctl")
+                    if os.path.exists(candidate):
+                        fifo = candidate
+                        break
+            if fifo is None:
+                if pane_id:
                     print("fl: no live fl client in this window "
                           "(attach first, e.g. 'fl list')", file=sys.stderr)
                 else:
@@ -206,22 +245,18 @@ def main():
         print("fl: you are inside the herdr TUI. Open a plain foot window "
               "(Win+Enter) and run fl there.", file=sys.stderr)
         sys.exit(1)
-    if os.environ.get("WH_PANE"):
-        print(f"fl: this window is already attached to pane {os.environ['WH_PANE']}. "
-              "Use 'fl list' to pick another, 'fl take' to fit.", file=sys.stderr)
-        sys.exit(1)
     server_status()
-    if args:
-        pane_id = args[0]
-        if pane_is_attached(pane_id) and "--force" not in args:
-            attached_hint(pane_id, f"fl {pane_id} --force")
-            sys.exit(1)
+    if positional:
+        pane_id = positional[0]
+        if pane_is_attached(pane_id) and not force:
+            focus_or_hint(pane_id)
+            return
         print(f"fl: attaching to {pane_id}")
         os.execvp("python3", ["python3", CLIENT, "--pane", pane_id, "--workspace-label", ""])
     target = pick_and_prepare_target()
-    if pane_is_attached(target["pane_id"]) and "--force" not in args:
-        attached_hint(target["pane_id"], "fl --force")
-        sys.exit(1)
+    if pane_is_attached(target["pane_id"]) and not force:
+        focus_or_hint(target["pane_id"])
+        return
     print(f"fl: attaching to {target['ws_label']}/{target['tab_label'] or ''} "
           f"({target['pane_id']})")
     os.execvp("python3", ["python3", CLIENT,

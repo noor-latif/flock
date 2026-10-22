@@ -439,6 +439,8 @@ class Client:
         self.idle_death = None
         self.fifo_path = self._fifo_path()
         self.recon_lock = threading.Lock()
+        self.close_config = read_close_config()
+        self.close_reason = None
 
     # ---- paths ------------------------------------------------------------
 
@@ -1021,6 +1023,28 @@ class Client:
         sys.stderr.write(f"[fl {time.strftime('%H:%M:%S')}] {msg}\n")
         sys.stderr.flush()
 
+    def maybe_close_pane(self):
+        """Window closed (HUP/SIGTERM): disposition per grill round 3 —
+        park agents, kill plain shells, and never act on stale state: the
+        pane's agent-ness is re-checked against the fork right now, so a
+        lagging in-memory topology cannot close a freshly started agent."""
+        if not self.pane_id or self.close_reason not in ("hup", "term"):
+            return
+        if self.agent_status:
+            policy = self.close_config["agent_panes"]
+        else:
+            policy = self.close_config["shell_panes"]
+        if policy != "close":
+            return
+        fresh = self.fetch_pane() or {}
+        if fresh.get("agent_status"):
+            return
+        try:
+            r = call_herdr("pane", "close", self.pane_id)
+            self.log(f"pane close: {(r.stdout or '').strip()[:80]}")
+        except Exception as e:
+            self.log(f"pane close skipped: {e}")
+
     def cleanup(self):
         if getattr(self, "_cleaned", False):
             return
@@ -1049,6 +1073,34 @@ class Client:
 
 # --------------------------------------------------------------------------
 
+def read_close_config():
+    """Close semantics (grill round 3): when a fl window closes (HUP/SIGTERM
+    of the whole client), agent panes park as usual — pane kept, agent keeps
+    running server-side, badge keeps state — while plain-shell panes are
+    closed in herdr too, so closing windows never litters junk shells.
+    Opinionated default, overridable in ~/.config/flock/config.toml:
+
+        [close]
+        shell_panes = "close" | "keep"   # default close
+        agent_panes = "keep" | "close"   # default keep
+
+    FLOCK_CLOSE_SHELLS=close|keep overrides shell_panes without a file."""
+    cfg = {"shell_panes": "close", "agent_panes": "keep"}
+    try:
+        import tomllib
+        with open(os.path.expanduser("~/.config/flock/config.toml"), "rb") as f:
+            data = tomllib.load(f).get("close", {})
+        for k in cfg:
+            if data.get(k) in ("close", "keep"):
+                cfg[k] = data[k]
+    except Exception:
+        pass
+    override = os.environ.get("FLOCK_CLOSE_SHELLS")
+    if override in ("close", "keep"):
+        cfg["shell_panes"] = override
+    return cfg
+
+
 def read_window_size(fd=1):
     buf = fcntl.ioctl(fd, termios.TIOCGWINSZ, b"\x00" * 8)
     rows, cols, xpix, ypix = struct.unpack("HHHH", buf)
@@ -1070,12 +1122,18 @@ def main():
         sys.exit(2)
     c = Client(ns.pane, ns.terminal, ns.workspace_label, ns.tab_label, ns.session)
     signal.signal(signal.SIGWINCH, c.on_sigwinch)
-    signal.signal(signal.SIGINT, lambda s, f: (c.log(f"SIG{s} received"), c.cleanup()))
-    signal.signal(signal.SIGTERM, lambda s, f: (c.log(f"SIG{s} received"), c.cleanup()))
-    signal.signal(signal.SIGHUP, lambda s, f: (c.log(f"SIGHUP received"), c.cleanup()))
+    def _handle_signal(sig, frame):
+        c.close_reason = {1: "hup", 2: "int", 3: "quit", 15: "term"}.get(sig, "signal")
+        c.log(f"SIG{sig} received")
+        c.cleanup()
+
+    signal.signal(signal.SIGINT, _handle_signal)
+    signal.signal(signal.SIGTERM, _handle_signal)
+    signal.signal(signal.SIGHUP, _handle_signal)
     threading.Thread(target=c.geometry_loop, daemon=True).start()
     threading.Thread(target=c.watch_hypr_focus, daemon=True).start()
     c.run()
+    c.maybe_close_pane()
 
 
 if __name__ == "__main__":
