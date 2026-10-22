@@ -73,9 +73,14 @@ only terminal-geometry attaches / protocol ≤1, fork `control_stream.rs:36-53`)
 attach (`--takeover`), and the claim-mode question needs a live probe
 (`control.list` during a real takeover) before any design is locked.
 Also "pure follower (no stored size)" and "phone-off restores desktop
-geometry" are mutually exclusive: restore works only via stored tab sizes
-(successor rule `control_stream.rs:426-461`), but storing a size claims the
-tab on next keystroke (`:1495-1533`). Pick two of three at the 5.1b grill.
+geometry" are mutually exclusive: `tab.set_geometry{claim:false}` is
+documented as stored-only (terminal.rs:180-183), and restore works only via
+stored sizes (successor rule `control_stream.rs:426-461`), but a stored size
+claims the tab on next keystroke (`:1495-1533`). OPEN 5.1b grill is exactly
+one probe question: **does phone-off restore desktop geometry WITHOUT a
+desktop keystroke — and if it needs one, is keystroke-claims acceptable?**
+Answer decides follower-vs-owner; nothing else in the fork needs more
+reading.
 
 - ☐ M0.1 Fix-before-daemonise (one PR, mechanical parts):
   (a) acks loader/save mismatch — saveAcks writes a flat map, ackLoad
@@ -104,6 +109,9 @@ tab on next keystroke (`:1495-1533`). Pick two of three at the 5.1b grill.
   `control.list` works on any connection). Widget consumes state.sock,
   falls back to the same `--once` implementation, renders degraded.
   Ack ledger stays widget-local until M0.5.
+  OPEN grill: stale-state budget — hide degraded host rows vs render with
+  last-good timestamp; reconcile interval per host class (local 2-5 s,
+  ssh 10-30 s). Blocks M0.3's degraded-render work.
 - ☐ M0.4 Actions split by owner: `host.*` (new_agent/prompt/close_pane/
   worktree) via flockd; `surface.focus_window` stays local; ack conditional
   on action result (today widget acks before focus succeeds).
