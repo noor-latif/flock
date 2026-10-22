@@ -108,54 +108,84 @@ cutover below — no control-stream viewer, no claims, no succession.
 
 - ☐ M0.1-forkfree Cutover PR (plan review verdicts folded —
   /tmp/flock-review/m01-review.md, surplus/deepseek-v4.1-flash, 16 findings;
-  E: three PRs, widget first):
-  PR-1 Widget fixes (safe pre-cutover): (e1) acks load/save round-trip
-  (flat map on disk vs doc.acked loader), (e2) pane matcher endsWith +
-  class check, (e3) ack only after action success (focusProc onExited),
-  (e4) drop `--force` from the spawn command in lockstep with PR-2.
-  PR-2 Cutover (atomic — title + wrapper + install.sh in the same PR):
-  (a) fl spawn-and-WAIT, never exec — the close-semantics wrapper needs a
-  surviving parent; keep resolve-or-create workspace flow, `fl list`,
-  `fl status`.
-  (a2) AGENTLESS PANES: `herdr agent attach` refuses non-agent panes
-  (`agent_not_found`, verified live + terminal_targets.rs:74-92), and
-  fl's default path attaches the workspace's first pane (often a shell) —
-  agentless targets fall back to plain `herdr pane attach`-equivalent:
-  spawn foot with a plain shell `herdr pane focus`/`pane run bash` —
-  NO close semantics for shell panes (window close just closes the shell;
-  herdr reaps it per its own semantics).
-  (a3) Title emission is fl's job: `agent attach` clients are never
-  foreground (headless.rs:1493-1519, clients.rs:467-473) and receive NO
-  WindowTitle — fl sets the title via foot's `-T` argument at spawn
-  (`foot -T "fl:<ws> — pane <id>"`), plus an OSC 2 write from the
-  surviving wrapper BEFORE the child takes the terminal (belt and braces;
-  the attach TUI never rewrites it); static title only (no live status
-  segment post-exec).
-  (a4) Focus-existing guard: fifo is gone; second `fl <pane>` must not
-  exit-1-and-die (server refuses a second attach, headless.rs:1787-1799) —
-  pre-attach `herdr` check: if `agent attach` fails with
-  "already attached", tell the user the window is live (hyprctl title
-  match, same needle as the widget) instead of spawning a dying window.
-  (a5) Error hold: attach failures under `foot -e` flash and vanish —
-  on non-takeover errors, print and `read -r` (hold the window) so the
-  text is readable.
-  (b) window title: keep `pane <pane_id>` suffix last (widget matcher);
-  old `fl:<ws> — status — viewing…` dynamic segment is dead by design.
-  (c) delete fl_client.py control-stream paths; keep only what `fl list`/
-  `fl new` need (CLI JSON calls — those are stock APIs).
-  (d) `fl take` verb deleted (fifo gone with the client); `fl list`'s "●"
-  attachment marker goes with it (accept: no marker until flockd).
-  (d2) Close semantics (round-3 decision), CORRECTED by review: gate on
-  SIGHUP/SIGTERM caught by the wrapper — NEVER exit code (takeover and
-  real errors both exit 1; detach exits 0). On window-close signal:
-  re-check agent-ness with `herdr agent get <pane>` (definitive;
-  `agent_status:"unknown"` lies for shell panes), close if agentless via
-  `herdr pane close`; agent panes stay (server-side park).
-  (e2b) install.sh: drop the `herdr control` probe (install.sh:51-67
-  hard-rejects stock herdr today); accept stock herdr ≥0.9.0.
-  (f) roadmap/docs: architecture-notes.md marked historical; README drops
-  `fl take`/`--force`/claim-discipline; AGENTS.md de-fl_client.
-  PR-3 Docs (f) if cutover grows too large — split only (f), never 2.
+  E: three PRs, widget first).
+
+  Background in one paragraph: today `fl` opens a window that speaks the
+  fork's control stream through `fl_client.py`. In the new world the window
+  just runs `herdr agent attach <pane>` — herdr's own viewer, same thing the
+  phone's Heeler app does. That sounds like a small swap, but the review
+  found four things herdr's attach does NOT do for us, and each one needs a
+  decision before coding:
+
+  1. **It refuses shell panes.** `herdr agent attach` only attaches panes
+     that run an agent; a plain shell pane gives `agent_not_found` (exit 1,
+     verified live). But bare `fl` attaches the workspace's first pane,
+     which is often just a shell. So: shell panes get a plain foot window
+     with a normal shell — no attach, no close logic, herdr reaps the pane
+     itself when the window closes.
+  2. **It sets no window title.** The widget finds flock windows by the
+     title suffix `pane <id>`. The old client wrote that title; the new
+     attach never does (herdr only pushes titles to its interactive
+     clients, not attach clients — headless.rs:1493-1519). So fl must set
+     the title itself: `foot -T "fl:<ws> — pane <id>"` when spawning the
+     window, plus an escape-sequence write from the small wrapper script
+     (see 4). The title is static from then on; no live status text.
+  3. **A second attach is refused.** If a window for that pane is already
+     open, running `fl <pane>` again gets "already attached" and the new
+     window would instantly die. Today the fifo guard catches this and
+     focuses the existing window instead. Without the fifo, fl must check
+     first and print "window already open" (and focus it via hyprctl)
+     instead of spawning a doomed window.
+  4. **Close semantics need a real process to live in.** The round-3
+     decision — when the user closes the window, park agent panes but
+     close shell panes — cannot ride on exit codes, because takeover and
+     real errors both exit 1 and a clean detach exits 0. The only reliable
+     signal is: the wrapper script catches SIGHUP/SIGTERM (what a window
+     close sends). So fl does NOT exec-replace itself with the attach —
+     it stays alive as a small parent, catches those signals, and on
+     window-close re-checks the pane with `herdr agent get` (definitive;
+     `agent_status:"unknown"` from `pane list` lies for shell panes):
+     agent pane → leave it (it keeps running server-side), shell pane →
+     `herdr pane close`.
+
+  Two more review findings folded in: attach failures under
+  `foot -e` close the window so fast the error text is unreadable (hold
+  the window open on errors, wait for a keypress), and `install.sh`
+  still hard-rejects herdr builds without the control stream
+  (install.sh:51-67) — it must accept stock herdr in the same PR, or
+  friends can't install mid-cutover.
+
+  **PR-1 Widget fixes** (safe to land first, works with old fl):
+  (e1) acks save/load mismatch — the widget writes one JSON shape and
+  reads another, so acks vanish on restart (BarWidget.qml:166-174 vs
+  143-157). (e2) window matcher: match titles ending with `pane <id>` and
+  check the window class is foot — today `indexOf("pane "+id)` matches
+  `pane 1` inside `pane 10` (BarWidget.qml:296-303). (e3) only clear the
+  badge after the focus/spawn actually succeeded (focusProc.onExited),
+  not before (BarWidget.qml:313-323). (e4) the widget's spawn command
+  still passes `--force`; remove it in this PR so PR-2 can delete the
+  flag without breaking the widget.
+
+  **PR-2 Cutover** (atomic — title + wrapper + install.sh together):
+  (a) fl spawns foot and waits (never exec) — the wrapper in 4 needs to
+  stay alive. (a2) shell-pane fallback per 1. (a3) title per 2.
+  (a4) focus-existing guard per 3. (a5) error hold: on attach failure,
+  print the reason and wait for Enter before the window closes.
+  (b) title keeps the `pane <pane_id>` suffix last (the widget matcher
+  depends on it); the old live status segment in the title is gone.
+  (c) delete fl_client.py's control-stream machinery (~800 lines: bridge,
+  snapshot pump, geometry claims, fifos); keep only the plain CLI calls
+  that `fl list`/`fl new` use.
+  (d) `fl take` deleted; the "●" attachment marker in `fl list` goes with
+  the fifo — accepted loss until flockd replaces it.
+  (d2) close semantics per 4 (signal-gated wrapper).
+  (e2b) install.sh accepts stock herdr, drops the fork probe.
+  (f) docs: architecture-notes.md marked historical; README loses
+  `fl take`/`--force`/geometry-claim sections; AGENTS.md loses
+  fl_client references.
+
+  **PR-3 Docs** — only if PR-2 got too big; never split PR-2 itself.
+
 - ☐ M0.2 One reader (unchanged): `flockd --once` / `fl status --snapshot`;
   delete QML shell pipeline.
 - ☐ M0.3 Daemon read-only single-host — now trivially stock-API: snapshot +
