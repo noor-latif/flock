@@ -36,7 +36,8 @@ pane in workspace `flrev`, output teed to /tmp/flock-review/. Notes in
 
 Spiked 2026-10-23 on a sandboxed stock 0.9.5 server: `Quickshell.Io.Socket` holds
 `events.subscribe`; a relative `import "proj.mjs" as P` works in a standalone
-Quickshell config (not yet in the real plugin loader).
+Quickshell config (not yet in the real plugin loader). Re-run after herdr or
+Quickshell updates: `python3 -I tests/events_probe.py`, `python3 -I tests/qs_socket/run.py`.
 
 - ☐ 1. Delete the 2 s `bash -lc herdr agent list` poll. QML `Socket` streams:
   - lifecycle, unfiltered: `workspace.created/updated/renamed/closed`,
