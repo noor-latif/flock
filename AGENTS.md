@@ -94,7 +94,7 @@ sure. Skip reload lines only when a NEW startup block follows them.
 
 - They judge by screenshots: write yours with `grim -g "x,y WxH"` + `magick
   ... -resize 500%`, and read theirs from ~/Pictures (newest first).
-- Grill big design decisions in rounds (skill: grilling), with concrete
+- Grill big design decisions in rounds (skill: stress-test), with concrete
   pixel-anchored options and a recommended first option. Never abstract
   question wording.
 - Pending grills live in ROADMAP.md as OPEN decisions — resolve them before
